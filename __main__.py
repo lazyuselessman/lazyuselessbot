@@ -2,7 +2,7 @@ from telegram_bot.lazyuselessbot import CustomTelegramBot
 from scheduler.scheduler_manager import CustomScheduler
 
 import logging
-from logging import Logger, basicConfig, INFO, getLogger, StreamHandler, FileHandler, Formatter
+from logging import Logger, INFO, getLogger, StreamHandler, FileHandler, Formatter
 from locale import setlocale, LC_ALL
 from threading import Thread
 from datetime import datetime

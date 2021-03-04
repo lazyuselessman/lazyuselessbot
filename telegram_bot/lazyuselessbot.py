@@ -1,7 +1,6 @@
 from telegram.ext import Updater, Dispatcher
 from telegram import Bot, Message
 from logging import getLogger, Logger
-from pprint import pprint
 from json import load
 
 

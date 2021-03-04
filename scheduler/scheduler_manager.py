@@ -3,7 +3,6 @@ from telegram_bot.lazyuselessbot import CustomTelegramBot
 from apscheduler.schedulers.blocking import BlockingScheduler
 from datetime import datetime, timedelta
 from logging import getLogger, WARNING
-from pprint import pprint
 from json import load
 
 
