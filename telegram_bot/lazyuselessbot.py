@@ -1,18 +1,20 @@
 from telegram.ext import Updater, Dispatcher
 from telegram import Bot, Message
-from logging import Logger
+from logging import getLogger, Logger
 from pprint import pprint
 from json import load
 
 
 class CustomTelegramBot():
-    def __init__(self, logger: Logger):
-        self.logger: Logger = logger
-
+    def __init__(self):
         self.load_settings()
         self.preparation()
         self.setup_handlers()
-
+        self.get_logger()
+        
+    def get_logger(self):
+        self.logger: Logger = getLogger(__name__)
+        
     def load_settings(self):
         with open(file='telegram_bot/telegram_bot_settings.json', mode='r') as settings_file:
             settings: dict = load(settings_file)
@@ -38,7 +40,9 @@ class CustomTelegramBot():
         self.bot.delete_message(chat_id=chat_id, message_id=message_id)
 
     def start(self):
+        self.logger.info('Custom Telegram Bot started')
         self.updater.start_polling()  # timeout=999
 
     def stop(self):
+        self.logger.info('Custom Telegram Bot has been shut down')
         self.updater.stop()

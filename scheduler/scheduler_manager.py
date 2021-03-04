@@ -2,6 +2,7 @@ from telegram_bot.lazyuselessbot import CustomTelegramBot
 
 from apscheduler.schedulers.blocking import BlockingScheduler
 from datetime import datetime, timedelta
+from logging import getLogger, WARNING
 from pprint import pprint
 from json import load
 
@@ -11,10 +12,17 @@ class CustomScheduler():
         self.telegram_bot = telegram_bot
         self.scheduler = BlockingScheduler()
 
+        self.get_logger()
+        self.disable_apscheduler_logger()
         self.load_settings()
         self.load_database()
         self.create_jobs()
-        pass
+
+    def get_logger(self):
+        self.logger = getLogger(__name__)
+
+    def disable_apscheduler_logger(self):
+        getLogger('apscheduler.scheduler').setLevel(WARNING)
 
     def load_settings(self):
         with open('scheduler/scheduler_settings.json', 'r') as settings_file:
@@ -53,7 +61,9 @@ class CustomScheduler():
             self.create_job(job)
 
     def start(self):
+        self.logger.info('Custom Scheduler started')
         self.scheduler.start()
 
     def stop(self):
+        self.logger.info('Custom Scheduler has been shut down')
         self.scheduler.shutdown()

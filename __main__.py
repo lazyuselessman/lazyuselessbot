@@ -1,24 +1,37 @@
 from telegram_bot.lazyuselessbot import CustomTelegramBot
 from scheduler.scheduler_manager import CustomScheduler
 
-from logging import Logger, basicConfig, INFO, getLogger
+import logging
+from logging import Logger, basicConfig, INFO, getLogger, StreamHandler, FileHandler, Formatter
 from locale import setlocale, LC_ALL
 from threading import Thread
 from datetime import datetime
 
+
 def configure_logger():
     # O?ieyia?y (ceia) → Фінляндія (зима)
     setlocale(LC_ALL, '')
-    basicConfig(format='%(asctime)s - %(levelname)s - %(message)s - %(name)s',
-                level=INFO,
-                datefmt='%a, %d %b %Y %H:%M:%S %z %Z',
-                filename=f'./logs/file.log', #f'./logs/{datetime.now().strftime("file_%d_%m_%Y_%H_%M.log")}',
-                filemode='w')
-    return getLogger(__name__)
+    formatter: Formatter = Formatter(fmt='%(asctime)s - %(levelname)s - %(message)s - %(name)s',
+                                     datefmt='%a, %d %b %Y %H:%M:%S %z %Z')
+
+    logger: Logger = getLogger()
+    logger.setLevel(INFO)
+
+    console_handler = StreamHandler()
+    console_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
+
+    # f'./logs/{datetime.now().strftime("file_%d_%m_%Y_%H_%M.log")}'
+    file_handler = FileHandler(filename=f'./logs/file.log',
+                               mode='a', encoding='utf-8')
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
+
+    return logger
 
 
-def configure_telegram_bot(logger):
-    telegram_bot = CustomTelegramBot(logger)
+def configure_telegram_bot():
+    telegram_bot = CustomTelegramBot()
     telegram_bot_thread = Thread(target=telegram_bot.start)
     telegram_bot_thread.start()
     return telegram_bot
@@ -41,8 +54,8 @@ def display_simple_menu(telegram_bot: CustomTelegramBot, scheduler: CustomSchedu
 
 
 def main():
-    logger: Logger = configure_logger()
-    telegram_bot: CustomTelegramBot = configure_telegram_bot(logger)
+    configure_logger()
+    telegram_bot: CustomTelegramBot = configure_telegram_bot()
     scheduler: CustomScheduler = configure_scheduler(telegram_bot)
     display_simple_menu(telegram_bot, scheduler)
 
