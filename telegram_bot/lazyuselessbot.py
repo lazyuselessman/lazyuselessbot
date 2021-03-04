@@ -10,10 +10,10 @@ class CustomTelegramBot():
         self.preparation()
         self.setup_handlers()
         self.get_logger()
-        
+
     def get_logger(self):
         self.logger: Logger = getLogger(__name__)
-        
+
     def load_settings(self):
         with open(file='telegram_bot/telegram_bot_settings.json', mode='r') as settings_file:
             settings: dict = load(settings_file)
