@@ -157,4 +157,6 @@ dmypy.json
 
 ### Custom ###
 *.json
-logs/*
+*.csv
+logs/
+test/
