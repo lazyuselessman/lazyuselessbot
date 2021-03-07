@@ -1,4 +1,5 @@
-from telegram_bot.lazyuselessbot import CustomTelegramBot
+from lazyuselessbot.bot import CustomBot
+from scheduler.database import SchedulerDatabase
 
 from apscheduler.schedulers.blocking import BlockingScheduler
 from datetime import datetime, timedelta
@@ -7,44 +8,34 @@ from json import load
 
 
 class CustomScheduler():
-    def __init__(self, telegram_bot: CustomTelegramBot):
-        self.telegram_bot = telegram_bot
+    def __init__(self, bot: CustomBot, database: SchedulerDatabase):
+        self.bot = bot
+        self.database = database
         self.scheduler = BlockingScheduler()
-
-        self.get_logger()
-        self.disable_apscheduler_logger()
-        self.load_settings()
-        self.load_database()
-        self.create_jobs()
-
-    def get_logger(self):
         self.logger = getLogger(__name__)
 
     def disable_apscheduler_logger(self):
+        """ Optional """
         getLogger('apscheduler.scheduler').setLevel(WARNING)
+        getLogger('apscheduler.executors.default').setLevel(WARNING)
 
-    def load_settings(self):
-        with open('scheduler/scheduler_settings.json', 'r') as settings_file:
+    def load_settings(self, filename: str):
+        with open(file=filename, mode='r', encoding='utf-8') as settings_file:
             settings: dict = load(settings_file)
 
-        self.database_filename: str = settings.get('database_filename')
-        self.default_group_id: int = settings.get('default_group_id')
-
-    def load_database(self):
-        with open(self.database_filename, 'r') as database_file:
-            self.database: dict = load(database_file)
+        self.default_group_id: int = settings.get('test_group_id')
 
     def send_and_delete_message(self, payload: dict):
         payload.get('message').update(
             text='\n'.join(payload.get('message').get('text')))
-        message_id = self.telegram_bot.send_message(
+        message_id = self.bot.send_message(
             chat_id=self.default_group_id, **payload.pop('message'))
         kwargs = {
             'chat_id': self.default_group_id,
             'message_id': message_id
         }
         run_date = datetime.now() + timedelta(**payload.pop('timedelta'))
-        self.scheduler.add_job(self.telegram_bot.delete_message,
+        self.scheduler.add_job(self.bot.delete_message,
                                trigger="date", run_date=run_date, kwargs=kwargs)
 
     def timeout_job_manager(self, payload: dict):
@@ -56,7 +47,7 @@ class CustomScheduler():
                                kwargs=job, **job.pop('time'))
 
     def create_jobs(self):
-        for job in self.database:
+        for job in self.database.get_all_jobs():
             self.create_job(job)
 
     def start(self):

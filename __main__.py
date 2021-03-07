@@ -1,63 +1,89 @@
-from telegram_bot.lazyuselessbot import CustomTelegramBot
-from scheduler.scheduler_manager import CustomScheduler
+from lazyuselessbot.bot import CustomBot
+from scheduler.manager import CustomScheduler
+from scheduler.database import SchedulerDatabase
 
 from logging import Logger, INFO, getLogger, StreamHandler, FileHandler, Formatter
 from locale import setlocale, LC_ALL
 from threading import Thread
 from datetime import datetime
+from json import load
 
 
-def configure_logger():
-    # O?ieyia?y (ceia) → Фінляндія (зима)
-    setlocale(LC_ALL, '')
-    formatter: Formatter = Formatter(fmt='%(asctime)s - %(levelname)s - %(message)s - %(name)s',
-                                     datefmt='%a, %d %b %Y %H:%M:%S %z %Z')
+class Controller():
+    def __init__(self):
+        pass
 
-    logger: Logger = getLogger()
-    logger.setLevel(INFO)
+    def configure_root_logger(self):
+        """ Optional """
+        # O?ieyia?y (ceia) → Фінляндія (зима)
+        setlocale(LC_ALL, '')
+        formatter: Formatter = Formatter(fmt='%(asctime)s - %(levelname)s - %(name)s - %(message)s',
+                                         datefmt='%a, %d %b %Y %H:%M:%S %z %Z')
 
-    console_handler = StreamHandler()
-    console_handler.setFormatter(formatter)
-    logger.addHandler(console_handler)
+        logger: Logger = getLogger()
+        logger.setLevel(INFO)
 
-    # f'./logs/{datetime.now().strftime("file_%d_%m_%Y_%H_%M.log")}'
-    file_handler = FileHandler(filename=f'./logs/file.log',
-                               mode='a', encoding='utf-8')
-    file_handler.setFormatter(formatter)
-    logger.addHandler(file_handler)
+        console_handler = StreamHandler()
+        console_handler.setFormatter(formatter)
+        logger.addHandler(console_handler)
 
-    return logger
+        # f'./logs/{datetime.now().strftime("file_%d_%m_%Y_%H_%M.log")}'
+        file_handler = FileHandler(filename=f'./logs/file.log',
+                                   mode='a', encoding='utf-8')
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
 
+    def configure_bot(self):
+        self.bot: CustomBot = CustomBot()
+        self.bot.load_settings(self.bot_settings_filename)
+        self.bot.connect()
+        self.bot.setup_handlers()
 
-def configure_telegram_bot():
-    telegram_bot = CustomTelegramBot()
-    telegram_bot_thread = Thread(target=telegram_bot.start)
-    telegram_bot_thread.start()
-    return telegram_bot
+        bot_thread = Thread(target=self.bot.start)
+        bot_thread.start()
 
+    def configure_scheduler_database(self):
+        self.scheduler_database: SchedulerDatabase = SchedulerDatabase(
+            self.scheduler_database_filename)
+        self.scheduler_database.load_database()
 
-def configure_scheduler(telegram_bot: CustomTelegramBot):
-    scheduler = CustomScheduler(telegram_bot)
-    scheduler_thread = Thread(target=scheduler.start)
-    scheduler_thread.start()
-    return scheduler
+    def configure_scheduler(self):
+        self.scheduler: CustomScheduler = CustomScheduler(
+            self.bot, self.scheduler_database)
+        self.scheduler.disable_apscheduler_logger()
+        self.scheduler.load_settings(self.scheduler_settings_filename)
+        self.scheduler.create_jobs()
 
+        scheduler_thread = Thread(target=self.scheduler.start)
+        scheduler_thread.start()
 
-def display_simple_menu(telegram_bot: CustomTelegramBot, scheduler: CustomScheduler):
-    while True:
-        option = input('Simple menu:\n0. Stop bot polling.\n')
-        if option == '0':
-            scheduler.stop()
-            telegram_bot.stop()
-            break
+    def display_simple_menu(self):
+        while True:
+            option = input('Simple menu:\n0. Stop bot polling.\n')
+            if option == '0':
+                self.scheduler.stop()
+                self.bot.stop()
+                break
+
+    def load_settings(self, filename: str):
+        with open(filename, 'r', encoding='utf-8') as settings:
+            settings = load(settings)
+
+        self.bot_settings_filename = settings.get('bot_settings')
+        self.scheduler_settings_filename = settings.get('scheduler_settings')
+        self.scheduler_database_filename = settings.get('scheduler_database')
 
 
 def main():
-    configure_logger()
-    telegram_bot: CustomTelegramBot = configure_telegram_bot()
-    scheduler: CustomScheduler = configure_scheduler(telegram_bot)
-    display_simple_menu(telegram_bot, scheduler)
+    controller: Controller = Controller()
+    controller.load_settings(settings)
+    controller.configure_root_logger()
+    controller.configure_bot()
+    controller.configure_scheduler_database()
+    controller.configure_scheduler()
+    controller.display_simple_menu()
 
 
 if __name__ == '__main__':
+    settings = 'settings.json'
     main()
