@@ -1,5 +1,0 @@
-{
-    "bot_settings": "lazyuselessbot/settings.json",
-    "scheduler_settings": "scheduler/settings.json",
-    "scheduler_database": "scheduler/schedule.json"
-}
