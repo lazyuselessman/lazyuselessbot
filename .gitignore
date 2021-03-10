@@ -158,7 +158,4 @@ dmypy.json
 ### Custom ###
 testings/
 logs/*
-lazyuselessbot/settings.json
-scheduler/schedule.json
-scheduler/settings.json
-settings.json
+
