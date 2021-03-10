@@ -1,6 +1,7 @@
 from lazyuselessbot.bot import CustomBot
 from scheduler.manager import CustomScheduler
 from scheduler.database import SchedulerDatabase
+from menu.simple_menu import SimpleMenu
 
 from logging import Logger, INFO, getLogger, StreamHandler, FileHandler, Formatter
 from locale import setlocale, LC_ALL
@@ -50,20 +51,20 @@ class Controller():
     def configure_scheduler(self):
         self.scheduler: CustomScheduler = CustomScheduler(
             self.bot, self.scheduler_database)
-        self.scheduler.disable_apscheduler_logger()
-        self.scheduler.load_settings(self.scheduler_settings_filename)
-        self.scheduler.create_jobs()
-
+        # self.scheduler.disable_apscheduler_logger()
         scheduler_thread = Thread(target=self.scheduler.start)
         scheduler_thread.start()
 
-    def display_simple_menu(self):
-        while True:
-            option = input('Simple menu:\n0. Stop bot polling.\n')
-            if option == '0':
-                self.scheduler.stop()
-                self.bot.stop()
-                break
+        self.scheduler.load_settings(self.scheduler_settings_filename)
+        self.scheduler.create_jobs()
+        self.scheduler_database.load_database()
+
+    def configure_simple_menu(self):
+        self.menu = SimpleMenu(self.bot, self.scheduler,
+                               self.scheduler_database)
+
+    def display_menu(self):
+        self.menu.display_menu()
 
     def load_settings(self, filename: str):
         with open(filename, 'r', encoding='utf-8') as settings:
@@ -81,7 +82,8 @@ def main():
     controller.configure_bot()
     controller.configure_scheduler_database()
     controller.configure_scheduler()
-    controller.display_simple_menu()
+    controller.configure_simple_menu()
+    controller.display_menu()
 
 
 if __name__ == '__main__':

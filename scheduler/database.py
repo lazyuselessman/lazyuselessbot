@@ -11,6 +11,9 @@ class SchedulerDatabase():
         with open(self.filename, 'r', encoding='utf-8') as database_file:
             self.database: list = load(database_file)
 
+    def get_new_id(self):
+        return self.database[-1].get('id') + 1
+
     def get_all_jobs(self):
         return self.database
 
@@ -28,5 +31,5 @@ class SchedulerDatabase():
         self.save_database_to_file()
 
     def save_database_to_file(self):
-        with open(self.filename, 'r', encoding='utf-8') as database_file:
+        with open(self.filename, 'w', encoding='utf-8') as database_file:
             dump(self.database, database_file, indent=4)
