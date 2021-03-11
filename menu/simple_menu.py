@@ -35,18 +35,15 @@ class SimpleMenu():
                     print(f'Type \'skip\' to skip.')
 
     def one_time_job(self):
+        year = self.select_int_range('year: ', MINYEAR, MAXYEAR, False)
+        month = self.select_int_range('month: ', 1, 12, False)
+        day = self.select_int_range('day: ', 1, 31, False)
+        hour = self.select_int_range('hour: ', 0, 24, False)
+        minute = self.select_int_range('minute: ', 0, 60, False)
+        second = self.select_int_range('second: ', 0, 60, False)
         return {
             'trigger': 'date',
-            'run_date': datetime(
-                **{
-                    'year': self.select_int_range('year:', MINYEAR, MAXYEAR, True),
-                    'month': self.select_int_range('month:', 1, 12, True),
-                    'day': self.select_int_range('day:', 1, 31, True),
-                    'hour': self.select_int_range('hour:', 0, 24, False),
-                    'minute': self.select_int_range('minute:', 0, 60, False),
-                    'second': self.select_int_range('second:', 0, 60, True)
-                }
-            )
+            'run_date': f'{year}-{month}-{day}T{hour}:{minute}:{second}'
         }
 
     def scheduled_job(self):
