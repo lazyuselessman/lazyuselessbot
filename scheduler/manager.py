@@ -2,6 +2,7 @@ from lazyuselessbot.bot import CustomBot
 from scheduler.database import SchedulerDatabase
 
 from apscheduler.schedulers.blocking import BlockingScheduler
+from apscheduler.jobstores.memory import MemoryJobStore 
 from datetime import datetime, timedelta
 from logging import getLogger, WARNING
 from os import startfile
@@ -13,6 +14,7 @@ class CustomScheduler():
         self.bot = bot
         self.database = database
         self.scheduler = BlockingScheduler()
+        self.scheduler.add_jobstore(MemoryJobStore(), alias='scheduled')
         self.logger = getLogger(__name__)
         self.actions = [
             ['send_and_delete_message', self.send_and_delete_message],
@@ -26,7 +28,7 @@ class CustomScheduler():
         self.default_group_id: int = settings.get('test_group_id')
 
     def reload_database(self):
-        self.scheduler.remove_all_jobs()
+        self.scheduler.remove_all_jobs(jobstore='default')
         self.database.load_database()
         self.create_jobs()
         self.database.load_database()
@@ -39,7 +41,7 @@ class CustomScheduler():
     def add_delay_job_run_once(self, func, delta, kwargs):
         run_date = datetime.now() + timedelta(**delta)
         self.scheduler.add_job(func=func, trigger="date",
-                               run_date=run_date, kwargs=kwargs)
+                               run_date=run_date, kwargs=kwargs, jobstore='scheduled')
 
     def send_message(self, payload):
         payload.get('message').update(
@@ -61,10 +63,7 @@ class CustomScheduler():
         message_id = self.send_message(payload)
         self.delete_message(payload, message_id)
 
-    def open_zoom_link(self, payload: dict):
-        # TODO:
-        #  parse link and open through build in app
-        #  not though browser it's annoying
+    def open_link(self, payload: dict):
         kwargs = {
             'func': startfile,
             'delta': payload.pop('timedelta'),
@@ -74,10 +73,18 @@ class CustomScheduler():
         }
         self.add_delay_job_run_once(**kwargs)
 
+    def open_zoom_link(self, payload: dict):
+        # TODO:
+        #  parse link and open through build in app
+        #  not though browser it's annoying
+        self.open_link(payload)
+
     def open_link_with_delay(self, payload: dict):
         url = payload.get('url')
         if 'zoom.us' in url:
             self.open_zoom_link(payload)
+        else:
+            self.open_link(payload)
 
     def timeout_job_manager(self, payload: dict):
         for income_action in payload:
@@ -89,7 +96,7 @@ class CustomScheduler():
 
     def create_job(self, job: dict):
         self.scheduler.add_job(func=self.timeout_job_manager,
-                               kwargs=job, **job.pop('time'))
+                               kwargs=job, jobstore='default', **job.pop('time'))
 
     def create_jobs(self):
         for job in self.database.get_all_jobs():
