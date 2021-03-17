@@ -25,7 +25,7 @@ class CustomScheduler():
         with open(file=filename, mode='r', encoding='utf-8') as settings_file:
             settings: dict = load(settings_file)
 
-        self.default_group_id: int = settings.get('test_group_id')
+        self.default_group_id: int = settings.get('default_group_id')
 
     def reload_database(self):
         self.scheduler.remove_all_jobs(jobstore='default')

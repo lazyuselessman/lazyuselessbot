@@ -32,4 +32,4 @@ class SchedulerDatabase():
 
     def save_database_to_file(self):
         with open(self.filename, 'w', encoding='utf-8') as database_file:
-            dump(self.database, database_file, indent=4)
+            dump(self.database, database_file, indent=4, ensure_ascii=False)
