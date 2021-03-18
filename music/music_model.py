@@ -36,7 +36,7 @@ class ModelMusic():
             filename = f'{info.get("uploader", "NA")} - {info.get("title", "NA")}'
         # elif 'NA -' in filename or '- NA':
             # print(f'Press F to pay respect before getting information from MusicBrainz.')
-        return f'{filename}.%(ext)s'
+        return f'{filename}'
 
     def normalize_filename(self, filename: str):
         return normalize('NFKD', filename).encode('cp1251', 'ignore').decode('cp1251')
@@ -45,7 +45,7 @@ class ModelMusic():
         return {
             'quiet': True,
             'format': 'bestaudio/best',
-            'outtmpl': f'{self.path}{filename}',
+            'outtmpl': f'{self.path}{filename}.%(ext)s',
             'noplaylist': True,
             'postprocessors': [{
                 'key': 'FFmpegExtractAudio',
@@ -58,9 +58,7 @@ class ModelMusic():
         ydl_opts = self.get_ydl_options(filename)
         with YoutubeDL(ydl_opts) as ydl:
             ydl.download([info.get('webpage_url')], )
-            filename_ = ydl.prepare_filename(info)
-            filename_ = splitext(filename_)[0]
-            return f'{filename_}.mp3'
+            return f'{filename}.mp3'
 
     def add_audio_tags(self, filename: str, info: dict):
         audio = MP3(filename)
