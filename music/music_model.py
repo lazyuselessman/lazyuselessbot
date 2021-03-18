@@ -1,7 +1,9 @@
+from mutagen.id3 import TIT2, TPE1, TDRC, TCON, TALB, TRCK, COMM
 from music.database_model import ModelMusicDatabase
 from unicodedata import normalize
 from youtube_dl import YoutubeDL
 from json import load, dump
+from mutagen.mp3 import MP3
 
 
 class ModelMusic():
@@ -60,7 +62,25 @@ class ModelMusic():
             return ydl.prepare_filename(info)
 
     def add_audio_tags(self, filename: str, info: dict):
-        pass
+        audio = MP3(filename)
+        tags = {
+            # Title/songname/content description
+            'TIT2': TIT2(encoding=3, text=info.get('track', '')),
+            # Lead performer(s)/Soloist(s)
+            'TPE1': TPE1(encoding=3, text=info.get('artist', '')),
+            # Date
+            'TDRC': TDRC(encoding=3, text=f'{info.get("release_year","")}'),
+            # Content type (genre)
+            'TCON': TCON(encoding=3, text=info.get('genre', '')),
+            # Album/Movie/Show title
+            'TALB': TALB(encoding=3, text=info.get('album', '')),
+            # Track number/Position in set
+            'TRCK': TRCK(encoding=3, text=info.get('track_number', '')),
+            # Comments
+            'COMM': COMM(encoding=3, text=info.get('webpage_url', '')),
+        }
+        audio.update(tags)
+        audio.save()
 
     def dump_info(self, info: dict):
         with open('./testings/info.json', 'w') as info_file:
