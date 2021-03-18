@@ -4,6 +4,7 @@ from unicodedata import normalize
 from youtube_dl import YoutubeDL
 from json import load, dump
 from mutagen.mp3 import MP3
+from os.path import splitext
 
 
 class ModelMusic():
@@ -30,11 +31,9 @@ class ModelMusic():
         # %(artist)s%(track)s
         # %(uploader)s%(title)s
         # otherwise search on MusicBrainz
-        with YoutubeDL({'outtmpl': '%(artist)s - %(track)s'}) as ydl:
-            filename = ydl.prepare_filename(info)
+        filename = f'{info.get("artist", "NA")} - {info.get("track", "NA")}'
         if filename == 'NA - NA':
-            with YoutubeDL({'outtmpl': '%(uploader)s - %(title)s'}) as ydl:
-                filename = ydl.prepare_filename(info)
+            filename = f'{info.get("uploader", "NA")} - {info.get("title", "NA")}'
         # elif 'NA -' in filename or '- NA':
             # print(f'Press F to pay respect before getting information from MusicBrainz.')
         return f'{filename}.%(ext)s'
@@ -59,7 +58,9 @@ class ModelMusic():
         ydl_opts = self.get_ydl_options(filename)
         with YoutubeDL(ydl_opts) as ydl:
             ydl.download([info.get('webpage_url')], )
-            return ydl.prepare_filename(info)
+            filename_ = ydl.prepare_filename(info)
+            filename_ = splitext(filename_)[0]
+            return f'{filename_}.mp3'
 
     def add_audio_tags(self, filename: str, info: dict):
         audio = MP3(filename)
@@ -77,7 +78,7 @@ class ModelMusic():
             # Track number/Position in set
             'TRCK': TRCK(encoding=3, text=info.get('track_number', '')),
             # Comments
-            'COMM': COMM(encoding=3, text=info.get('webpage_url', '')),
+            'COMM': COMM(encoding=3, text=f'https://youtu.be/{info.get("id", "")}'),
         }
         audio.update(tags)
         audio.save()
@@ -107,9 +108,11 @@ class ModelMusic():
 
     def download_music_from_url(self, url: str):
         info = self.get_audio_info(url, True)
-        self.download_music_from_info(info)
+        return self.download_music_from_info(info)
 
     def download_playlist_from_url(self, url: str):
+        songs = list()
         info = self.get_audio_info(url, False)
         for info in info.get('entries'):
-            self.download_music_from_info(info)
+            songs.append(self.download_music_from_info(info))
+        return songs

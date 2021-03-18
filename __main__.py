@@ -2,6 +2,8 @@ from lazyuselessbot.bot import CustomBot
 from scheduler.manager import CustomScheduler
 from scheduler.database import SchedulerDatabase
 from menu.simple_menu import SimpleMenu
+from music.music_model import ModelMusic
+from music.database_model import ModelMusicDatabase
 
 from logging import Logger, INFO, getLogger, StreamHandler, FileHandler, Formatter
 from locale import setlocale, LC_ALL
@@ -35,7 +37,7 @@ class Controller():
         logger.addHandler(file_handler)
 
     def configure_bot(self):
-        self.bot: CustomBot = CustomBot()
+        self.bot: CustomBot = CustomBot(self.music_downloader)
         self.bot.load_settings(self.bot_settings_filename)
         self.bot.connect()
         self.bot.setup_handlers()
@@ -63,6 +65,13 @@ class Controller():
         self.menu = SimpleMenu(self.bot, self.scheduler,
                                self.scheduler_database)
 
+    def configure_music_database(self):
+        self.music_database: ModelMusicDatabase = ModelMusicDatabase()
+
+    def configure_music_dowloader(self):
+        self.music_downloader: ModelMusic = ModelMusic(self.music_database)
+        self.music_downloader.load_settings(self.music_settings_filename)
+
     def display_menu(self):
         self.menu.display_menu()
 
@@ -73,12 +82,16 @@ class Controller():
         self.bot_settings_filename = settings.get('bot_settings')
         self.scheduler_settings_filename = settings.get('scheduler_settings')
         self.scheduler_database_filename = settings.get('scheduler_database')
+        self.music_settings_filename = settings.get('music_settings')
+        self.music_database_filename = settings.get('music_database')
 
 
 def main():
     controller: Controller = Controller()
     controller.load_settings(settings)
     controller.configure_root_logger()
+    controller.configure_music_database()
+    controller.configure_music_dowloader()
     controller.configure_bot()
     controller.configure_scheduler_database()
     controller.configure_scheduler()
