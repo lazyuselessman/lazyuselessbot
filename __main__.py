@@ -2,8 +2,8 @@ from lazyuselessbot.bot import CustomBot
 from scheduler.manager import CustomScheduler
 from scheduler.database import SchedulerDatabase
 from menu.simple_menu import SimpleMenu
-from music.music_model import ModelMusic
-from music.database_model import ModelMusicDatabase
+from music.downloader import MusicDownloader
+from music.database import MusicDatabase
 
 from logging import Logger, INFO, getLogger, StreamHandler, FileHandler, Formatter
 from locale import setlocale, LC_ALL
@@ -66,10 +66,11 @@ class Controller():
                                self.scheduler_database)
 
     def configure_music_database(self):
-        self.music_database: ModelMusicDatabase = ModelMusicDatabase()
+        self.music_database: MusicDatabase = MusicDatabase()
+        self.music_database.load_settings(self.music_settings_filename)
 
     def configure_music_dowloader(self):
-        self.music_downloader: ModelMusic = ModelMusic(self.music_database)
+        self.music_downloader: MusicDownloader = MusicDownloader(self.music_database)
         self.music_downloader.load_settings(self.music_settings_filename)
 
     def display_menu(self):

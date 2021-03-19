@@ -1,14 +1,16 @@
 from telegram.ext import Updater, Dispatcher, CommandHandler, MessageHandler, CallbackQueryHandler, CallbackContext
-from telegram.ext.filters import Filters
 from telegram import Bot, Message, Update, Chat, ChatAction
+from telegram.ext.filters import Filters
 from logging import getLogger, Logger
 from json import load
+from pprint import pformat
 
-from music.music_model import ModelMusic
+from music.downloader import MusicDownloader
+from lazyuselessbot.customcommandhandler import CustomCommandHandler
 
 
 class CustomBot():
-    def __init__(self, music_downloader: ModelMusic):
+    def __init__(self, music_downloader: MusicDownloader):
         self.logger: Logger = getLogger(__name__)
         self.music_downloader = music_downloader
 
@@ -19,6 +21,7 @@ class CustomBot():
         self.token: str = settings.get('token')
         self.owner_chat_id: int = settings.get('owner_chat_id')
         self.owner_group_id: int = settings.get('owner_group_id')
+        self.active_group_id: list = settings.get('active_group_id')
 
     def connect(self):
         self.updater: Updater = Updater(token=self.token, use_context=True)
@@ -26,22 +29,25 @@ class CustomBot():
         self.bot: Bot = self.updater.bot
 
     def setup_handlers(self):
+        # log every message
+        self.dp.add_handler(MessageHandler(Filters.all, self.log_update))
+        group = 1
         # basic commands
-        self.dp.add_handler(CommandHandler('start', self.start_message))
-        self.dp.add_handler(CommandHandler('help', self.help_message))
+        self.dp.add_handler(CommandHandler('start', self.start_message), group=group)
+        self.dp.add_handler(CommandHandler('help', self.help_message), group=group)
 
         # music download, scheduler access from web
-        self.dp.add_handler(CommandHandler('music', self.music))
-        self.dp.add_handler(CommandHandler('time', self.time))
+        self.dp.add_handler(CustomCommandHandler('music', self.music), group=group)
+        self.dp.add_handler(CommandHandler('time', self.time), group=group)
 
         # download income audio
-        self.dp.add_handler(MessageHandler(Filters.audio, self.audio))
+        self.dp.add_handler(MessageHandler(Filters.audio, self.audio), group=group)
 
         # callback for query
-        self.dp.add_handler(MessageHandler(Filters.all, self.all))
+        self.dp.add_handler(MessageHandler(Filters.all, self.all), group=group)
 
         # default answer
-        self.dp.add_handler(CallbackQueryHandler(self.callback))
+        self.dp.add_handler(CallbackQueryHandler(self.callback), group=group)
 
         # error handler
         self.dp.add_error_handler(self.error)
@@ -115,7 +121,12 @@ class CustomBot():
     def audio(self, update: Update, context: CallbackContext):
         pass
 
+    def log_update(self, update: Update, context: CallbackContext):
+        text = f'Income update:\n{pformat(update.to_dict(), indent=4)}'
+        self.logger.info(text)
+
     def all(self, update: Update, context: CallbackContext):
+
         pass
 
     def callback(self, update: Update, context: CallbackContext):

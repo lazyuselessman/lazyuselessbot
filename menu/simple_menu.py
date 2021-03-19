@@ -1,8 +1,7 @@
 from lazyuselessbot.bot import CustomBot
 from scheduler.manager import CustomScheduler
 from scheduler.database import SchedulerDatabase
-import datetime
-from datetime import datetime, MAXYEAR, MINYEAR
+from datetime import MAXYEAR, MINYEAR
 
 
 class SimpleMenu():
