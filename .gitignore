@@ -159,6 +159,8 @@ dmypy.json
 testings/
 logs/*
 lazyuselessbot/settings.json
+lazyuselessbot/votedatabase.json
+lazyuselessbot/modedatabase.json
 scheduler/schedule.json
 scheduler/settings.json
 settings.json

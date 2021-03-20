@@ -46,7 +46,7 @@ class CustomScheduler():
     def send_message(self, payload):
         payload.get('message').update(
             text='\n'.join(payload.get('message').get('text')))
-        return self.bot.send_message(chat_id=self.default_group_id, **payload.pop('message'))
+        return self.bot.send_message_thank(chat_id=self.default_group_id, **payload.pop('message'))
 
     def delete_message(self, payload, message_id):
         kwargs = {

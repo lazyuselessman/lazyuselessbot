@@ -1,18 +1,30 @@
-from telegram.ext import Updater, Dispatcher, CommandHandler, MessageHandler, CallbackQueryHandler, CallbackContext
-from telegram import Bot, Message, Update, Chat, ChatAction
+from telegram.ext import (
+    Updater,
+    Dispatcher,
+    CommandHandler,
+    MessageHandler,
+    CallbackQueryHandler,
+    CallbackContext
+)
+from telegram import Bot, Message, Update, Chat, ChatAction, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext.filters import Filters
 from logging import getLogger, Logger
 from json import load
 from pprint import pformat
+from time import time
+from shutil import move
 
 from music.downloader import MusicDownloader
 from lazyuselessbot.customcommandhandler import CustomCommandHandler
+from lazyuselessbot.votedatabase import VoteDatabase, yes, no, y_symbol, n_symbol
+from lazyuselessbot.modedatabase import ModeDatabase, command, prompt, music, cancel
 
 
 class CustomBot():
     def __init__(self, music_downloader: MusicDownloader):
         self.logger: Logger = getLogger(__name__)
         self.music_downloader = music_downloader
+        self.timer = time()
 
     def load_settings(self, filename: str):
         with open(file=filename, mode='r') as settings_file:
@@ -21,7 +33,11 @@ class CustomBot():
         self.token: str = settings.get('token')
         self.owner_chat_id: int = settings.get('owner_chat_id')
         self.owner_group_id: int = settings.get('owner_group_id')
-        self.active_group_id: list = settings.get('active_group_id')
+
+        self.votedatabase = VoteDatabase(settings.get('votedatabase'))
+        self.music_path = settings.get('music_path')
+
+        self.modedatabase = ModeDatabase(settings.get('modedatabase'))
 
     def connect(self):
         self.updater: Updater = Updater(token=self.token, use_context=True)
@@ -33,24 +49,61 @@ class CustomBot():
         self.dp.add_handler(MessageHandler(Filters.all, self.log_update))
         group = 1
         # basic commands
-        self.dp.add_handler(CommandHandler('start', self.start_message), group=group)
-        self.dp.add_handler(CommandHandler('help', self.help_message), group=group)
-
+        self.dp.add_handler(CommandHandler('start', self.start_message),
+                            group=group)
+        self.dp.add_handler(CommandHandler('help', self.help_message),
+                            group=group)
         # music download, scheduler access from web
-        self.dp.add_handler(CustomCommandHandler('music', self.music), group=group)
-        self.dp.add_handler(CommandHandler('time', self.time), group=group)
+        self.dp.add_handler(CustomCommandHandler('music', self.music, ~Filters.status_update),
+                            group=group)
+        self.dp.add_handler(CommandHandler('time', self.time),
+                            group=group)
 
         # download income audio
-        self.dp.add_handler(MessageHandler(Filters.audio, self.audio), group=group)
+        self.dp.add_handler(MessageHandler(Filters.audio, self.audio),
+                            group=group)
 
-        # callback for query
-        self.dp.add_handler(MessageHandler(Filters.all, self.all), group=group)
+        # default behavior
+        self.dp.add_handler(CustomCommandHandler('settings', self.settings),
+                            group=group)
+        self.dp.add_handler(CallbackQueryHandler(self.settings_callback, pattern=f'^({command}|{prompt}|{music}|{cancel})$'),
+                            group=group)
 
-        # default answer
-        self.dp.add_handler(CallbackQueryHandler(self.callback), group=group)
+        # thank message callback
+        self.dp.add_handler(CallbackQueryHandler(self.thank_callback, pattern=f'^({yes}|{no})$'),
+                            group=group)
 
         # error handler
         self.dp.add_error_handler(self.error)
+
+    def get_settings_reply_markup(self):
+        keyboard = [
+            [
+                InlineKeyboardButton(command, callback_data=command),
+                InlineKeyboardButton(prompt, callback_data=prompt),
+                InlineKeyboardButton(music, callback_data=music)
+            ],
+            [InlineKeyboardButton(cancel, callback_data=cancel)]
+        ]
+        return InlineKeyboardMarkup(keyboard)
+
+    def settings(self, update: Update, connect: CallbackContext):
+        # Send Question to select mode
+        # All with Prompt — dispaly nice prompt what bot should do with this message
+        # Command only — bot will response only messages with commands
+        # All Music — bot will assume that messages in group contain only links to music
+        # Default — ignore everything, response only on settings@lazyuselessbot
+        text = self.modedatabase.generate_text(update.effective_chat.id)
+        reply_markup = self.get_thanks_replymarkup(0,0)
+        update.effective_message.reply_text(text, reply_markup=reply_markup)
+
+    def settings_callback(self, update: Update, context: CallbackContext):
+        query = update.callback_query
+        text = self.modedatabase.edit_entry(
+            update.effective_chat.id, query.data)
+        query.answer(text)
+        update.effective_message.reply_to_message.delete()
+        update.effective_message.delete()
 
     def start_message(self, update: Update, context: CallbackContext):
         kwargs = {
@@ -114,37 +167,73 @@ class CustomBot():
         # for each individual link
         for arg in context.args:
             self.music_download(arg, update.effective_chat.id)
+        update.effective_message.delete()
 
     def time(self, update: Update, context: CallbackContext):
         pass
 
     def audio(self, update: Update, context: CallbackContext):
-        pass
+        self.log_update(update, context)
+        audio_file = update.effective_message.audio.get_file()
+        filename = audio_file.download()
+        move(filename, f'{self.music_path}{filename}')
+        file_id = update.effective_message.audio.file_id
+        self.bot.send_audio(chat_id=update.effective_chat.id, audio=file_id)
+        update.effective_message.delete()
 
     def log_update(self, update: Update, context: CallbackContext):
-        text = f'Income update:\n{pformat(update.to_dict(), indent=4)}'
-        self.logger.info(text)
-
-    def all(self, update: Update, context: CallbackContext):
-
-        pass
-
-    def callback(self, update: Update, context: CallbackContext):
-        pass
+        self.logger.info(
+            f'Income update:\n{pformat(update.to_dict(), indent=4)}')
 
     def error(self, update: Update, context: CallbackContext):
-        self.logger.error(f'Update {update} caused error {context.error}')
+        self.log_update(update, context)
+        self.logger.error(f'Error: {context.error}')
 
     def send_message(self, chat_id, **kwargs):
         self.bot.send_chat_action(chat_id, ChatAction.TYPING)
         message: Message = self.bot.send_message(chat_id=chat_id, **kwargs)
         return message.message_id
 
+    def get_thanks_replymarkup(self, y_count: int, n_count: int):
+        keyboard = [
+            [
+                InlineKeyboardButton(f'{y_count} {y_symbol}', callback_data=yes),
+                InlineKeyboardButton(f'{n_count} {n_symbol}', callback_data=no)
+            ]
+        ]
+        return InlineKeyboardMarkup(keyboard)
+
+    def send_message_thank(self, chat_id, **kwargs):
+        self.bot.send_chat_action(chat_id, ChatAction.TYPING)
+        reply_markup = self.get_thanks_replymarkup(0, 0)
+        message: Message = self.bot.send_message(chat_id=chat_id,
+                                                 reply_markup=reply_markup, **kwargs)
+        print(pformat(message.to_json()))
+        return message.message_id
+
+    def thank_callback(self, update: Update, context: CallbackContext):
+        query = update.callback_query
+        key = f'{update.effective_chat.id}_{update.effective_message.message_id}'
+        user_id = query.from_user.id
+        data = query.data
+        y_counter, n_counter, text = self.votedatabase.edit_entry(key,
+                                                                  user_id, data)
+
+        query.answer(text=text)
+        reply_markup = self.get_thanks_replymarkup(y_counter, n_counter)
+
+        if time() - self.timer > 3:
+            self.timer = time()
+            query.edit_message_reply_markup(reply_markup=reply_markup)
+
     def send_audio(self, chat_id, **kwargs):
         self.bot.send_chat_action(chat_id, ChatAction.UPLOAD_AUDIO)
         return self.bot.send_audio(**kwargs)
 
     def delete_message(self, chat_id, message_id):
+        # key = f'{chat_id}_{message_id}'
+        # entry = self.votedatabase.delete_entry(key)
+        # self.logger.info(f'Removed entry: \n {pformat(entry)}')
         self.bot.delete_message(chat_id=chat_id, message_id=message_id)
 
     def start(self):
@@ -152,5 +241,9 @@ class CustomBot():
         self.updater.start_polling()  # timeout=999
 
     def stop(self):
-        self.logger.info('Custom Bot has been shut down')
+        self.votedatabase.save_database()
+        self.logger.info('VoteDatabase has been saved')
+        self.modedatabase.save_database()
+        self.logger.info('ModeDatabase has been saved')
         self.updater.stop()
+        self.logger.info('Custom Bot has been shut down')
