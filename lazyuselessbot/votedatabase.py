@@ -62,7 +62,7 @@ class VoteDatabase():
             entry = self.database.get(key)
         return entry
 
-    def edit_entry(self, key: str,  chat_id: int, data: str):
+    def edit_entry(self, key: str,  chat_id: int, data: str=None):
         with self.lock:
             text = str()
             entry: dict = self.get_entry(key)

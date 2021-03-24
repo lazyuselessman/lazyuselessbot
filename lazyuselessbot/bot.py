@@ -35,6 +35,7 @@ class CustomBot():
         self.owner_group_id: int = settings.get('owner_group_id')
 
         self.votedatabase = VoteDatabase(settings.get('votedatabase'))
+        self.votedatabase.load_database()
         self.music_path = settings.get('music_path')
 
         self.modedatabase = ModeDatabase(settings.get('modedatabase'))
@@ -70,6 +71,10 @@ class CustomBot():
                             group=group)
 
         # thank message callback
+        self.dp.add_handler(CustomCommandHandler('kb_ty', self.kb_thank, ~Filters.status_update),
+                            group=group)
+        self.dp.add_handler(CustomCommandHandler('kb_rm', self.kb_remove, ~Filters.status_update),
+                            group=group)
         self.dp.add_handler(CallbackQueryHandler(self.thank_callback, pattern=f'^({yes}|{no})$'),
                             group=group)
 
@@ -194,6 +199,22 @@ class CustomBot():
         message: Message = self.bot.send_message(chat_id=chat_id, **kwargs)
         return message.message_id
 
+    def kb_thank(self, update: Update, context: CallbackContext):
+        message = update.effective_message
+        if message.reply_to_message:
+            key = f'{update.effective_chat.id}_{message.reply_to_message.message_id}'
+            chat_id = update.effective_chat.id
+            y_counter, n_counter, _ = self.votedatabase.edit_entry(key, chat_id)
+            reply_markup = self.get_thanks_replymarkup(y_counter, n_counter)
+            message.reply_to_message.edit_reply_markup(reply_markup=reply_markup)
+        message.delete()
+
+    def kb_remove(self, update: Update, context: CallbackContext):
+        message = update.effective_message
+        if message.reply_to_message:
+            message.reply_to_message.edit_reply_markup()
+        message.delete()
+
     def get_thanks_replymarkup(self, y_count: int, n_count: int):
         keyboard = [
             [
@@ -208,16 +229,15 @@ class CustomBot():
         reply_markup = self.get_thanks_replymarkup(0, 0)
         message: Message = self.bot.send_message(chat_id=chat_id,
                                                  reply_markup=reply_markup, **kwargs)
-        print(pformat(message.to_json()))
         return message.message_id
 
     def thank_callback(self, update: Update, context: CallbackContext):
         query = update.callback_query
-        key = f'{update.effective_chat.id}_{update.effective_message.message_id}'
-        user_id = query.from_user.id
+        key = f'{update.effective_chat.id}_{query.message.message_id}'
+        chat_id = update.effective_user.id
         data = query.data
         y_counter, n_counter, text = self.votedatabase.edit_entry(key,
-                                                                  user_id, data)
+                                                                  chat_id, data)
 
         query.answer(text=text)
         reply_markup = self.get_thanks_replymarkup(y_counter, n_counter)
