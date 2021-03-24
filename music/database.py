@@ -30,7 +30,10 @@ class MusicDatabase():
         filename = self.generate_filename(info)
         filename = self.normalize_filename(filename)
         filename = f'{self.path}{filename}'
-        rename(f'{self.path}{audio}', filename, )
+        try:
+            rename(f'{self.path}{audio}', filename, )
+        except:
+            pass
         self.add_audio_tags(filename, info)
         record = {
             'youtube_id': info.get('id'),
