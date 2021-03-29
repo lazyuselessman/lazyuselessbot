@@ -58,6 +58,8 @@ class MusicDatabase():
         return f'{filename}.mp3'
 
     def normalize_filename(self, filename: str):
+        for symbol in ['<', '>', ':', '"', '/', '\\', '|', '?', '*']:
+            filename = filename.replace(symbol, '')
         return normalize('NFKD', filename).encode('cp1251', 'ignore').decode('cp1251')
 
     def add_audio_tags(self, filename: str, info: dict):
