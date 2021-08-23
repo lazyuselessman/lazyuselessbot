@@ -23,7 +23,7 @@ class ModeDatabase():
 
     def generate_text(self, chat_id: int):
         mode = self.get_current_mode(chat_id)
-        return f'Current mode: {mode}\nPress buttons below to change.\nPress Cancel to discard changes.'
+        return f'Current mode: {mode}\nPress buttons below to change.\nPress Cancel to discard changes.\nCommand - bot will response only messages with commands\nPrompt -dispaly nice prompt what bot should do with this message\nMusic - bot will assume that messages in group contain only links to music'
 
     def get_current_mode(self, chat_id: int):
         if chat_id in self.command_group_ids:

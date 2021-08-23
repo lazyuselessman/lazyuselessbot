@@ -1,7 +1,7 @@
 from lazyuselessbot.bot import CustomBot
 from scheduler.manager import CustomScheduler
 from scheduler.database import SchedulerDatabase
-from datetime import MAXYEAR, MINYEAR
+from datetime import MAXYEAR, MINYEAR, datetime
 
 
 class SimpleMenu():
@@ -45,6 +45,25 @@ class SimpleMenu():
             'run_date': f'{year}-{month}-{day}T{hour}:{minute}:{second}'
         }
 
+    def select_every_week(self):
+        period = self.select_int_range(
+            'Every nth week?\n1. Every week\n2. Every two week', 1, 2, False)
+        if period == 1:
+            return '*'
+        week_number = datetime.now().isocalendar().week
+        next_week = self.select_int_range(
+            'Starting from current week?\n1.Yes.\n2.No', 1, 2, False)
+        if next_week == 1:
+            if week_number % 2 == 0:
+                return f'2/{period}'
+            else:
+                return f'1/{period}'
+        else:
+            if week_number % 2 == 0:
+                return f'1/{period}'
+            else:
+                return f'2/{period}'
+
     def scheduled_job(self):
         day_of_week_text = 'day_of_week:\n0. Monday\n1. Thusday\n2. Wednesday\n3. Thursday\n4. Friday\n5. Saturday\n6. Sunday'
         return {
@@ -52,6 +71,7 @@ class SimpleMenu():
             # 'year': self.select_int_range('year:', MINYEAR, MAXYEAR, True),
             # 'month': self.select_int_range('month:', 1, 12, True),
             # 'day': self.select_int_range('day:', 1, 31, True),
+            'week': self.select_every_week(),
             'day_of_week': self.select_int_range(day_of_week_text, 0, 6, False),
             'hour': self.select_int_range('hour:', 0, 23, False),
             'minute': self.select_int_range('minute:', 0, 59, False),
@@ -81,7 +101,7 @@ class SimpleMenu():
             'action': 'send_and_delete_message',
             'message': {
                 'disable_notification': True if self.select_int_range(f'disable_notification?\n1. True\n2. False', 1, 2, False) == 1 else False,
-                'text': self.input_text('Input text message')
+                'text': self.input_text('Input text message.\nType . to exit.')
             },
             'timedelta': {
                 'hours': self.select_int_range('Delete in:\nhours:', 0, 24, False),

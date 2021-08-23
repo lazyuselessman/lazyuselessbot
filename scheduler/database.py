@@ -12,7 +12,10 @@ class SchedulerDatabase():
             self.database: list = load(database_file)
 
     def get_new_id(self):
-        return self.database[-1].get('id') + 1
+        if len(self.database):
+            return self.database[-1].get('id') + 1
+        else:
+            return 1
 
     def get_all_jobs(self):
         return self.database

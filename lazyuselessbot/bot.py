@@ -99,7 +99,7 @@ class CustomBot():
         # All Music — bot will assume that messages in group contain only links to music
         # Default — ignore everything, response only on settings@lazyuselessbot
         text = self.modedatabase.generate_text(update.effective_chat.id)
-        reply_markup = self.get_thanks_replymarkup(0,0)
+        reply_markup = self.get_settings_reply_markup()
         update.effective_message.reply_text(text, reply_markup=reply_markup)
 
     def settings_callback(self, update: Update, context: CallbackContext):
