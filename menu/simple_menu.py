@@ -1,7 +1,8 @@
 from lazyuselessbot.bot import CustomBot
 from scheduler.manager import CustomScheduler
 from scheduler.database import SchedulerDatabase
-from datetime import MAXYEAR, MINYEAR, datetime
+from datetime import MAXYEAR, MINYEAR, datetime, timedelta
+from requests import request
 
 
 class SimpleMenu():
@@ -145,10 +146,65 @@ class SimpleMenu():
         job.update(payload=self.dialog_actions())
         self.scheduler_database.add_job(job)
 
+    def process_week(self, days: dict, week: int):
+        for i in range(1, 6):
+            day = days.get(f"{i}")
+            for lesson in day.get('lessons'):
+                time_start = datetime.strptime(lesson.get('time_start'),
+                                               '%H:%M:%S')
+                text = f'{datetime.strftime(time_start, "%H:%M")} º ‿ º\n{lesson.get("lesson_type")} {lesson.get("lesson_full_name")} {lesson.get("teacher_name")}\n{lesson.get("lesson_room")}'
+                url = input('Adding ' + lesson.get('day_name') +
+                            f':\n{text}\nInput conference url: ')
+                text += f"\n{url}"
+                job: dict = dict()
+                job.update(id=self.scheduler_database.get_new_id())
+                time_start = time_start - timedelta(minutes=10)
+                time_delta = datetime.strptime(lesson.get(
+                    'time_end'), '%H:%M:%S') - time_start + timedelta(minutes=10)
+                job.update(time={
+                    'trigger': 'cron',
+                    'week': f'{week}/2',
+                    'day_of_week': f'{i-1}',
+                    'hour': time_start.hour,
+                    'minute': time_start.minute,
+                })
+                job.update(payload=[{
+                    'action': 'send_and_delete_message',
+                    "message": {
+                        "disable_notification": True if self.select_int_range(f'disable_notification?\n1. True\n2. False', 1, 2, False) == 1 else False,
+                        "text": text.split('\n')
+                    },
+                    "timedelta": {
+                        "hours": time_delta.seconds // (60*60),
+                        "minutes": (time_delta.seconds//60) % 60
+                    }
+                },
+                    {
+                        'action': 'open_link_with_delay',
+                        'url': url,
+                        'timedelta': {
+                            'hours': 0,
+                            'minutes': 1
+                        }
+                }])
+                from pprint import pformat
+                print(f'Added job\n{pformat(job, indent=4)}')
+                self.scheduler_database.add_job(job)
+
+    def group_lessons(self):
+        response = request('GET',
+                           f'https://api.rozklad.org.ua/v2/groups/{input("Group name? ")}/timetable')
+        if response.ok:
+            weeks = response.json().get('data').get('weeks')
+            self.process_week(weeks.get('1').get('days'), 1)
+            self.process_week(weeks.get('2').get('days'), 2)
+        else:
+            print("Unable to fetch group lessons.")
+
     def display_menu(self):
         while True:
             option = input(
-                'Simple menu:\n0. Stop bot polling.\n1. Add new job to database.\n2. Reload database.\n')
+                'Simple menu:\n0. Stop bot polling.\n1. Add new job to database.\n2. Reload database.\n3. Setup group lessons.\n')
             if option == '0':
                 self.shutdown()
                 break
@@ -156,3 +212,5 @@ class SimpleMenu():
                 self.add_new_job_to_database()
             elif option == '2':
                 self.scheduler.reload_database()
+            elif option == '3':
+                self.group_lessons()
