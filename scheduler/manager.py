@@ -21,12 +21,6 @@ class CustomScheduler():
             ['open_link_with_delay', self.open_link_with_delay]
         ]
 
-    def load_settings(self, filename: str):
-        with open(file=filename, mode='r', encoding='utf-8') as settings_file:
-            settings: dict = load(settings_file)
-
-        self.default_group_id: int = settings.get('default_group_id')
-
     def reload_database(self):
         self.scheduler.remove_all_jobs(jobstore='default')
         self.database.load_database()
@@ -46,14 +40,14 @@ class CustomScheduler():
     def send_message(self, payload):
         payload.get('message').update(
             text='\n'.join(payload.get('message').get('text')))
-        return self.bot.send_message_thank(chat_id=self.default_group_id, **payload.pop('message'))
+        return self.bot.send_message_thank(**payload.get('message'))
 
     def delete_message(self, payload, message_id):
         kwargs = {
             'func': self.bot.delete_message,
-            'delta': payload.pop('timedelta'),
+            'delta': payload.get('timedelta'),
             "kwargs": {
-                'chat_id': self.default_group_id,
+                'chat_id': payload.get('message').get('chat_id'),
                 'message_id': message_id
             }
         }
@@ -66,9 +60,9 @@ class CustomScheduler():
     def open_link(self, payload: dict):
         kwargs = {
             'func': startfile,
-            'delta': payload.pop('timedelta'),
+            'delta': payload.get('timedelta'),
             'kwargs': {
-                'filepath': payload.pop('url')
+                'filepath': payload.get('url')
             }
         }
         self.add_delay_job_run_once(**kwargs)
@@ -86,9 +80,9 @@ class CustomScheduler():
         else:
             self.open_link(payload)
 
-    def timeout_job_manager(self, payload: dict):
+    def timeout_job_manager(self, payload: list):
         for income_action in payload:
-            action = income_action.pop('action')
+            action = income_action.get('action')
 
             for action_name, func in self.actions:
                 if action == action_name:
@@ -100,7 +94,7 @@ class CustomScheduler():
 
     def create_jobs(self):
         for job in self.database.get_all_jobs():
-            self.logger.info(f'Processing job with id: {job.pop("id")}')
+            self.logger.info(f'Processing job with id: {job.get("id")}')
             self.create_job(job)
 
     def start(self):

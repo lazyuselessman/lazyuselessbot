@@ -8,7 +8,6 @@ from music.database import MusicDatabase
 from logging import Logger, INFO, getLogger, StreamHandler, FileHandler, Formatter
 from locale import setlocale, LC_ALL
 from threading import Thread
-from datetime import datetime
 from json import load
 
 
@@ -57,9 +56,7 @@ class Controller():
         scheduler_thread = Thread(target=self.scheduler.start)
         scheduler_thread.start()
 
-        self.scheduler.load_settings(self.scheduler_settings_filename)
         self.scheduler.create_jobs()
-        self.scheduler_database.load_database()
 
     def configure_simple_menu(self):
         self.menu = SimpleMenu(self.bot, self.scheduler,

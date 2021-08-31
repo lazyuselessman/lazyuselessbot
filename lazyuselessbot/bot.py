@@ -187,8 +187,9 @@ class CustomBot():
         update.effective_message.delete()
 
     def log_update(self, update: Update, context: CallbackContext):
-        self.logger.info(
-            f'Income update:\n{pformat(update.to_dict(), indent=4)}')
+        if update:
+            self.logger.info(
+                f'Income update:\n{pformat(update.to_dict(), indent=4)}')
 
     def error(self, update: Update, context: CallbackContext):
         self.log_update(update, context)
@@ -258,7 +259,7 @@ class CustomBot():
 
     def start(self):
         self.logger.info('Custom Bot started')
-        self.updater.start_polling()  # timeout=999
+        self.updater.start_polling(timeout=999)  # 
 
     def stop(self):
         self.votedatabase.save_database()

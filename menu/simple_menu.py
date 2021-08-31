@@ -3,6 +3,7 @@ from scheduler.manager import CustomScheduler
 from scheduler.database import SchedulerDatabase
 from datetime import MAXYEAR, MINYEAR, datetime, timedelta
 from requests import request
+from json import load
 
 
 class SimpleMenu():
@@ -10,6 +11,7 @@ class SimpleMenu():
         self.bot = bot
         self.scheduler = scheduler
         self.scheduler_database = scheduler_database
+        self.chats = 'menu/chats.json'
 
     def shutdown(self):
         print(f'Shutting down..')
@@ -97,10 +99,19 @@ class SimpleMenu():
                 return message_text
             message_text.append(input_text)
 
+    def select_chat(self):
+        with open(self.chats, mode='r', encoding='utf-8') as chats:
+            chats: list = load(chats)
+        text = '\n'.join(
+            [f"{i} {chat.get('name')}" for i, chat in enumerate(chats)])
+        option = self.select_int_range(text, 0, len(chats), False)
+        return chats[option].get('id')
+
     def dialog_send_and_delete_message(self):
         return {
             'action': 'send_and_delete_message',
             'message': {
+                'chat_id': self.select_chat(),
                 'disable_notification': True if self.select_int_range(f'disable_notification?\n1. True\n2. False', 1, 2, False) == 1 else False,
                 'text': self.input_text('Input text message.\nType . to exit.')
             },
@@ -148,11 +159,14 @@ class SimpleMenu():
 
     def process_week(self, days: dict, week: int):
         for i in range(1, 6):
+            if self.select_int_range(f"skip to skip day {i}, 1 to continue", 1, 1, True) is None:
+                continue
+
             day = days.get(f"{i}")
             for lesson in day.get('lessons'):
                 time_start = datetime.strptime(lesson.get('time_start'),
                                                '%H:%M:%S')
-                text = f'{datetime.strftime(time_start, "%H:%M")} º ‿ º\n{lesson.get("lesson_type")} {lesson.get("lesson_full_name")} {lesson.get("teacher_name")}\n{lesson.get("lesson_room")}'
+                text = f'{datetime.strftime(time_start, "%H:%M")} º ‿ º\n{lesson.get("lesson_name")}\n{lesson.get("teacher_name")}\n{lesson.get("lesson_room")}'
                 url = input('Adding ' + lesson.get('day_name') +
                             f':\n{text}\nInput conference url: ')
                 text += f"\n{url}"
@@ -171,6 +185,7 @@ class SimpleMenu():
                 job.update(payload=[{
                     'action': 'send_and_delete_message',
                     "message": {
+                        'chat_id': self.select_chat(),
                         "disable_notification": True if self.select_int_range(f'disable_notification?\n1. True\n2. False', 1, 2, False) == 1 else False,
                         "text": text.split('\n')
                     },
@@ -187,8 +202,6 @@ class SimpleMenu():
                             'minutes': 1
                         }
                 }])
-                from pprint import pformat
-                print(f'Added job\n{pformat(job, indent=4)}')
                 self.scheduler_database.add_job(job)
 
     def group_lessons(self):

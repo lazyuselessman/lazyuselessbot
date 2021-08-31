@@ -164,4 +164,5 @@ lazyuselessbot/modedatabase.json
 scheduler/schedule.json
 scheduler/settings.json
 settings.json
+menu/chats.json
 music/database/*
