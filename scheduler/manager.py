@@ -2,7 +2,7 @@ from lazyuselessbot.bot import CustomBot
 from scheduler.database import SchedulerDatabase
 
 from apscheduler.schedulers.blocking import BlockingScheduler
-from apscheduler.jobstores.memory import MemoryJobStore 
+from apscheduler.jobstores.memory import MemoryJobStore
 from datetime import datetime, timedelta
 from logging import getLogger, WARNING
 from os import startfile
@@ -90,7 +90,7 @@ class CustomScheduler():
 
     def create_job(self, job: dict):
         self.scheduler.add_job(func=self.timeout_job_manager,
-                               kwargs=job, jobstore='default', **job.pop('time'))
+                               kwargs={'payload': job.get('payload')}, jobstore='default', **job.get('time'))
 
     def create_jobs(self):
         for job in self.database.get_all_jobs():
