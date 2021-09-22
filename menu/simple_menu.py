@@ -174,7 +174,7 @@ class SimpleMenu():
                 job.update(id=self.scheduler_database.get_new_id())
                 time_start = time_start - timedelta(minutes=10)
                 time_delta = datetime.strptime(lesson.get(
-                    'time_end'), '%H:%M:%S') - time_start + timedelta(minutes=10)
+                    'time_end'), '%H:%M:%S') - time_start
                 job.update(time={
                     'trigger': 'cron',
                     'week': f'{week}/2',

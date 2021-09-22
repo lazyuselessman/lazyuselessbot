@@ -35,7 +35,7 @@ class CustomScheduler():
     def add_delay_job_run_once(self, func, delta, kwargs):
         run_date = datetime.now() + timedelta(**delta)
         self.scheduler.add_job(func=func, trigger="date",
-                               run_date=run_date, kwargs=kwargs, jobstore='scheduled')
+                               run_date=run_date, kwargs=kwargs, jobstore='scheduled', misfire_grace_time=None)
 
     def send_message(self, payload):
         payload.get('message').update(
@@ -90,7 +90,7 @@ class CustomScheduler():
 
     def create_job(self, job: dict):
         self.scheduler.add_job(func=self.timeout_job_manager,
-                               kwargs={'payload': job.get('payload')}, jobstore='default', **job.get('time'))
+                               kwargs={'payload': job.get('payload')}, jobstore='default', misfire_grace_time=None, **job.get('time'))
 
     def create_jobs(self):
         for job in self.database.get_all_jobs():
