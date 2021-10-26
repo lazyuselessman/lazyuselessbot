@@ -1,3 +1,4 @@
+from time import sleep
 from music.database import MusicDatabase
 from youtube_dl import YoutubeDL
 from json import load
@@ -46,9 +47,14 @@ class MusicDownloader():
         if exist:
             return exist
         else:
-            self.verify_audio_parameters(info)
-            audio = self.download_audio(info)
-            return self.database.add_audio(audio, info)
+            while True:
+                try:
+                    self.verify_audio_parameters(info)
+                    audio = self.download_audio(info)
+                    return self.database.add_audio(audio, info)
+                except Exception as err:
+                    print(f'{err}\n{info.get("webpage_url")}')
+                    sleep(10)
 
     def get_audio_info(self, url: str, noplaylist: bool = False):
         return YoutubeDL({'quiet': True, 'noplaylist': noplaylist}).extract_info(url, download=False)

@@ -186,10 +186,11 @@ class CustomBot():
         self.bot.send_audio(chat_id=update.effective_chat.id, audio=file_id)
         update.effective_message.delete()
 
-    def log_update(self, update: Update, context: CallbackContext):
-        if update:
-            self.logger.info(
-                f'Income update:\n{pformat(update.to_dict(), indent=4)}')
+    def log_update(self, update: Update, _: CallbackContext):
+        try:
+            self.logger.info(f'Income update:\n{pformat(update.to_dict(), indent=4)}')
+        except Exception as err:
+            pass
 
     def error(self, update: Update, context: CallbackContext):
         self.log_update(update, context)
@@ -259,7 +260,7 @@ class CustomBot():
 
     def start(self):
         self.logger.info('Custom Bot started')
-        self.updater.start_polling(timeout=999)  # 
+        self.updater.start_polling(timeout=999)  #
 
     def stop(self):
         self.votedatabase.save_database()
