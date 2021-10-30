@@ -6,7 +6,7 @@ from telegram.ext import (
     CallbackQueryHandler,
     CallbackContext
 )
-from telegram import Bot, Message, Update, Chat, ChatAction, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Bot, Message, Update, ChatAction, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext.filters import Filters
 from logging import getLogger, Logger
 from json import load
@@ -14,16 +14,16 @@ from pprint import pformat
 from time import time
 from shutil import move
 
-from music.downloader import MusicDownloader
+from music.database import MusicDatabase
 from lazyuselessbot.customcommandhandler import CustomCommandHandler
 from lazyuselessbot.votedatabase import VoteDatabase, yes, no, y_symbol, n_symbol
 from lazyuselessbot.modedatabase import ModeDatabase, command, prompt, music, cancel
 
 
 class CustomBot():
-    def __init__(self, music_downloader: MusicDownloader):
+    def __init__(self, music_database: MusicDatabase):
         self.logger: Logger = getLogger(__name__)
-        self.music_downloader = music_downloader
+        self.music_database = music_database
         self.timer = time()
 
     def load_settings(self, filename: str):
@@ -143,7 +143,7 @@ class CustomBot():
             'caption': f'https://youtu.be/{song.get("youtube_id")}',
             'thumb': open(song.get('thumbnail'), 'rb')
         }
-        if song.get('telegram_id') != '':
+        if song.get('telegram_id'):
             message_kwargs = {
                 'chat_id': chat_id,
                 'text': f'Already in library\n'
@@ -158,14 +158,10 @@ class CustomBot():
             with open(song.get('filename'), 'rb') as audio:
                 kwargs.update(audio=audio)
                 audio_message = self.send_audio(chat_id, **kwargs)
-                self.music_downloader.database.update_record(song.get('youtube_id'), audio_message.audio.file_id)
+                self.music_database.update_record(song.get('youtube_id'), audio_message.audio.file_id)
 
     def music_download(self, url: str, chat_id):
-        if self.music_downloader.playlist_check(url):
-            for song in self.music_downloader.download_playlist_from_url(url):
-                self.upload_music(song, chat_id)
-        else:
-            song = self.music_downloader.download_music_from_url(url)
+        for song in self.music_database.get_music(url):
             self.upload_music(song, chat_id)
 
     def music(self, update: Update, context: CallbackContext):

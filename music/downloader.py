@@ -1,25 +1,19 @@
+import os
 from time import sleep
-from music.database import MusicDatabase
 from youtube_dl import YoutubeDL
-from json import load
+from urllib.parse import urlparse
+from urllib.request import urlretrieve
 
 
 class MusicDownloader():
-    def __init__(self, database: MusicDatabase):
-        self.database = database
+    def __init__(self):
+        pass
 
-    def load_settings(self, filename: str):
-        with open(filename, 'r') as settings:
-            settings = load(settings)
-
-        self.songs_path = settings.get('songs_path')
-        self.temp_filename = settings.get('temp_filename')
-
-    def get_ydl_options(self):
+    def get_ydl_options(self, filename: str) -> dict:
         return {
             'quiet': True,
             'format': 'bestaudio/best',
-            'outtmpl': f'{self.songs_path}{self.temp_filename}.%(ext)s',
+            'outtmpl': f'{filename}.%(ext)s',
             'noplaylist': True,
             'postprocessors': [{
                 'key': 'FFmpegExtractAudio',
@@ -28,11 +22,11 @@ class MusicDownloader():
             }]
         }
 
-    def download_audio(self, info: dict):
-        ydl_opts = self.get_ydl_options()
+    def download_audio(self, info: dict, filename: str):
+        ydl_opts = self.get_ydl_options(filename)
         with YoutubeDL(ydl_opts) as ydl:
             ydl.download([info.get('webpage_url')], )
-            return f'{self.temp_filename}.mp3'
+            return f'{filename}.mp3'
 
     def verify_audio_parameters(self, info: dict):
         duration = 10 * 60
@@ -42,36 +36,21 @@ class MusicDownloader():
         if info.get('filesize', 0) > filesize:
             raise NameError(f'Audio filesize exceed {filesize} bytes.')
 
-    def download_music_from_info(self, info: dict):
-        exist = self.database.audio_exist(info)
-        if exist:
-            return self.database.get_audio(info)
-        else:
-            self.verify_audio_parameters(info)
-            while True:
-                try:
-                    audio = self.download_audio(info)
-                    return self.database.add_audio(audio, info)
-                except Exception as err:
-                    print(f'{err}\n{info.get("webpage_url")}')
-                    sleep(10)
+    def song(self, info: dict, filename: str):
+        self.verify_audio_parameters(info)
+        while True:
+            try:
+                return self.download_audio(info, filename)
+            except Exception as err:
+                print(f'{err}\n{info.get("webpage_url")}')
+                sleep(10)
 
-    def get_audio_info(self, url: str, noplaylist: bool = False):
-        return YoutubeDL({'quiet': True, 'noplaylist': noplaylist}).extract_info(url, download=False)
-
-    def download_music_from_url(self, url: str):
-        info = self.get_audio_info(url, True)
-        return self.download_music_from_info(info)
-
-    def download_playlist_from_url(self, url: str):
-        songs = list()
-        info = self.get_audio_info(url, False)
-        for info in info.get('entries'):
-            songs.append(self.download_music_from_info(info))
-        return songs
-
-    def playlist_check(self, url):
-        info = self.get_audio_info(url)
+    def retrive_songs_info(self, url: str) -> list[str]:
+        info = YoutubeDL({'quiet': True}).extract_info(url, download=False)
         if info.get('_type') == 'playlist':
-            return True
-        return False
+            return info.get('entries')
+        return [info, ]
+
+    def thumb(self, url: str, filename: str) -> str:
+        _, ext = os.path.splitext(os.path.normpath(urlparse(url).path))
+        return urlretrieve(url, f'{filename}{ext}')[0]

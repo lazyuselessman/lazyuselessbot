@@ -1,34 +1,25 @@
-from mutagen.id3 import TIT2, TPE1, TDRC, TCON, TALB, TRCK, COMM
-from unicodedata import normalize
-from mutagen.mp3 import MP3
-from json import load, dump
-from os import rename
 import os
-from urllib.parse import urlparse
-from urllib.request import urlretrieve
-from sqlalchemy import create_engine, inspect
 import contextlib
-
+from json import load, dump
+from mutagen.mp3 import MP3
+from unicodedata import normalize
 from logging import getLogger, Logger
+from sqlalchemy import create_engine, inspect
 from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.sql import exists, update, delete, select
-from sqlalchemy.sql.sqltypes import Boolean
+from mutagen.id3 import TIT2, TPE1, TDRC, TCON, TALB, TRCK, COMM
 
 from music.music import Music, Base
+from music.downloader import MusicDownloader
 
 # id  | youtube_id    | filename  | telegram_id   | duration  | performer         | Title         | thumb
 # 0   | xxxxxxxxxxxx  | temp_.mp3 | 1235          | 120       | Three Days Grace  | The Real You  | cover.jpeg
 
 
 class MusicDatabase():
-    def __init__(self):
+    def __init__(self, downloader: MusicDownloader):
         self.logger: Logger = getLogger(__name__)
-        
-    def connect(self):
-        self.engine = create_engine(self.music_database)
-        self.session_factory = sessionmaker(bind=self.engine)
-        self.Session = scoped_session(self.session_factory)
-        self.inspector = inspect(self.engine)
+        self.downloader = downloader
 
     @contextlib.contextmanager
     def ManagedSession(self):
@@ -49,8 +40,13 @@ class MusicDatabase():
             settings = load(settings)
         self.songs_path = settings.get('songs_path')
         self.thumbnails_path = settings.get('thumbnails_path')
-        self.temp_filename = settings.get('temp_filename')
         self.music_database = settings.get('music_database')
+
+    def connect(self):
+        self.engine = create_engine(self.music_database)
+        self.session_factory = sessionmaker(bind=self.engine)
+        self.Session = scoped_session(self.session_factory)
+        self.inspector = inspect(self.engine)
 
     def create_table_if_no_exist(self) -> None:
         if not self.inspector.has_table(Music.__tablename__):
@@ -59,13 +55,9 @@ class MusicDatabase():
     def drop_table(self) -> None:
         Music.__table__.drop(self.engine)
 
-    def audio_exist(self, info: dict) -> Boolean:
+    def audio_exist(self, info: dict) -> bool:
         with self.ManagedSession() as session:
             return session.query(exists().where(Music.youtube_id == info.get('id'))).scalar()
-
-    def get_audio(self, info: dict) -> dict:
-        with self.ManagedSession() as session:
-            return session.execute(select(Music).where(Music.youtube_id == info.get('id'))).first()[0].to_dict()
 
     def delete_song(self, youtube_id: str) -> None:
         with self.ManagedSession() as session:
@@ -78,36 +70,38 @@ class MusicDatabase():
                             where(Music.youtube_id == youtube_id).
                             values(telegram_id=telegram_id))
 
-    def download_thumbnail(self, url, filename) -> str:
-        _, ext = os.path.splitext(os.path.normpath(urlparse(url).path))
-        return urlretrieve(url, f'{filename}{ext}')[0]
+    def get_music(self, url: str) -> list:
+        with self.ManagedSession() as session:
+            return [self.get_audio(session, info) for info in self.downloader.retrive_songs_info(url)]
 
-    def add_audio(self, audio: str, info: dict):
+    def get_audio(self, session, info: dict) -> dict:
+        music = session.execute(select(Music).
+                                where(Music.youtube_id == info.get('id'))).first()
+        if music:
+            return music[0].to_dict()
+        else:
+            return self.download_song(session, info).to_dict()
+
+    def download_song(self, session, info: dict) -> Music:
         filename, artist, track = self.generate_filename(info)
         filename = self.normalize_filename(filename)
-        song_filename = f'{self.songs_path}{filename}.mp3'
-        thumb_filename = f'{self.thumbnails_path}{filename}'
-        try:
-            rename(f'{self.songs_path}{audio}', song_filename)
-        except:
-            pass
-        self.add_audio_tags(song_filename, info)
-        thumbnail = self.download_thumbnail(
-            info.get('thumbnail'), thumb_filename)
-        record = {
-            'youtube_id': info.get('id'),
-            'filename': song_filename,
-            'telegram_id': '',
-            'duration': f'{info.get("duration", 0)}',
-            'performer': artist,
-            'title': track,
-            'thumbnail': thumbnail
-        }
-        entry = Music(**record)
-        with self.ManagedSession() as session:
-            session.add(entry)
 
-        return record
+        song = self.downloader.song(info,
+                                    os.path.join(self.songs_path, filename))
+        self.add_audio_tags(song, info)
+
+        thumb = self.downloader.thumb(info.get('thumbnail'),
+                                      os.path.join(self.thumbnails_path, filename))
+
+        entry = Music(youtube_id=info.get('id'),
+                      filename=song,
+                      telegram_id='',
+                      duration=f'{info.get("duration", 0)}',
+                      performer=artist,
+                      title=track,
+                      thumbnail=thumb)
+        session.add(entry)
+        return entry
 
     def generate_filename(self, info: dict):
         # %(artist)s%(track)s
@@ -153,14 +147,14 @@ class MusicDatabase():
     def print_database(self):
         print('Songs in database:')
         print(f'{"id":>3} | {"youtube_id":>13} | {"filename":>30} | {"telegram_id":>15} | {"duration":>9} | {"performer":>20} | {"title":>10} | {"thumbnail":>30}')
-        with self.ManagedSession() as session:    
+        with self.ManagedSession() as session:
             for song in session.query(Music).order_by(Music.id):
                 print(f'{song.id:>3} | {song.youtube_id:>13} | {song.filename:>30} | {song.telegram_id:>15} | {song.duration:>9} | {song.performer:>20} | {song.title:>10} | {song.thumbnail:>30}')
 
     def print_songs(self):
         print('Songs in database:')
         print(f'{"id":>3} | {"performer":>30} | {"title":>20}')
-        with self.ManagedSession() as session:    
+        with self.ManagedSession() as session:
             for song in session.query(Music).order_by(Music.id):
                 print(f'{song.id:>3} | {song.performer:>30} | {song.title:>20}')
 

@@ -36,7 +36,7 @@ class Controller():
         logger.addHandler(file_handler)
 
     def configure_bot(self):
-        self.bot: CustomBot = CustomBot(self.music_downloader)
+        self.bot: CustomBot = CustomBot(self.music_database)
         self.bot.load_settings(self.bot_settings_filename)
         self.bot.connect()
         self.bot.setup_handlers()
@@ -63,15 +63,14 @@ class Controller():
                                self.scheduler_database,
                                self.music_database)
 
+    def configure_music_downloader(self):
+        self.music_downloader: MusicDownloader = MusicDownloader()
+
     def configure_music_database(self):
-        self.music_database: MusicDatabase = MusicDatabase()
+        self.music_database: MusicDatabase = MusicDatabase(self.music_downloader)
         self.music_database.load_settings(self.music_settings_filename)
         self.music_database.connect()
         self.music_database.create_table_if_no_exist()
-
-    def configure_music_dowloader(self):
-        self.music_downloader: MusicDownloader = MusicDownloader(self.music_database)
-        self.music_downloader.load_settings(self.music_settings_filename)
 
     def display_menu(self):
         self.menu.display_menu()
@@ -91,8 +90,8 @@ def main():
     controller: Controller = Controller()
     controller.load_settings(settings)
     controller.configure_root_logger()
+    controller.configure_music_downloader()
     controller.configure_music_database()
-    controller.configure_music_dowloader()
     controller.configure_bot()
     controller.configure_scheduler_database()
     controller.configure_scheduler()
