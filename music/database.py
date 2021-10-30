@@ -55,14 +55,13 @@ class MusicDatabase():
     def drop_table(self) -> None:
         Music.__table__.drop(self.engine)
 
-    def audio_exist(self, info: dict) -> bool:
+    def audio_exist(self, youtube_id: str) -> bool:
         with self.ManagedSession() as session:
-            return session.query(exists().where(Music.youtube_id == info.get('id'))).scalar()
+            return session.query(exists().where(Music.youtube_id == youtube_id)).scalar()
 
-    def delete_song(self, youtube_id: str) -> None:
+    def delete_song(self, id: int) -> None:
         with self.ManagedSession() as session:
-            session.execute(delete(Music).
-                            where(Music.youtube_id == youtube_id))
+            session.execute(delete(Music).where(Music.id == id))
 
     def update_record(self, youtube_id: str, telegram_id: str) -> None:
         with self.ManagedSession() as session:
@@ -160,7 +159,7 @@ class MusicDatabase():
 
     def songs(self):
         with self.ManagedSession() as session:
-            return session.query(Music).order_by(Music.id)
+            return [music.to_dict() for music in session.query(Music).order_by(Music.id)]
 
     def dump_info(self, info: dict):
         with open('./testings/info.json', 'w') as info_file:

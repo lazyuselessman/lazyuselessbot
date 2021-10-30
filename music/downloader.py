@@ -45,7 +45,7 @@ class MusicDownloader():
                 print(f'{err}\n{info.get("webpage_url")}')
                 sleep(10)
 
-    def retrive_songs_info(self, url: str) -> list[str]:
+    def retrive_songs_info(self, url: str) -> list[dict]:
         info = YoutubeDL({'quiet': True}).extract_info(url, download=False)
         if info.get('_type') == 'playlist':
             return info.get('entries')

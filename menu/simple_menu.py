@@ -222,6 +222,13 @@ class SimpleMenu():
     def drop_table(self):
         self.music_database.drop_table()
 
+    def delete_music(self):
+        self.music_database.print_songs()
+        try:
+            self.music_database.delete_song(int(input("Input id:")))
+        except:
+            pass
+
     def display_menu(self):
         while True:
             option = input('\n'.join(('Simple menu:',
@@ -231,6 +238,7 @@ class SimpleMenu():
                                       '3. Setup group lessons.',
                                       '4. Print music database.',
                                       #   '5. Drop table.',
+                                      '6. Delete song from database.',
                                       '')))
             if option == '0':
                 self.shutdown()
@@ -245,3 +253,5 @@ class SimpleMenu():
                 self.print_database()
             # elif option == '5':
             #     self.drop_table()
+            elif option == '6':
+                self.delete_music()
