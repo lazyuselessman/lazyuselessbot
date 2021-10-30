@@ -166,3 +166,4 @@ scheduler/settings.json
 settings.json
 menu/chats.json
 music/database/*
+music/archive.sqlite

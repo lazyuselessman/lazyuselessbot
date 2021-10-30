@@ -137,14 +137,13 @@ class CustomBot():
 
     def upload_music(self, song: dict, chat_id):
         kwargs = {
-            'chat_id': chat_id,
             'duration': song.get('duration'),
             'performer': song.get('performer'),
             'title': song.get('title'),
             'caption': f'https://youtu.be/{song.get("youtube_id")}',
-            # 'thumb': open(song.get('thumb'), 'rb')
+            'thumb': open(song.get('thumbnail'), 'rb')
         }
-        if song.get('telegram_id'):
+        if song.get('telegram_id') != '':
             message_kwargs = {
                 'chat_id': chat_id,
                 'text': f'Already in library\n'
@@ -154,11 +153,12 @@ class CustomBot():
             }
             self.send_message(**message_kwargs)
             kwargs.update(audio=song.get('telegram_id'))
-            self.send_audio(**kwargs)
+            self.send_audio(chat_id, **kwargs)
         else:
             with open(song.get('filename'), 'rb') as audio:
                 kwargs.update(audio=audio)
-                self.bot.send_audio(**kwargs)
+                audio_message = self.send_audio(chat_id, **kwargs)
+                self.music_downloader.database.update_record(song.get('youtube_id'), audio_message.audio.file_id)
 
     def music_download(self, url: str, chat_id):
         if self.music_downloader.playlist_check(url):
@@ -250,7 +250,7 @@ class CustomBot():
 
     def send_audio(self, chat_id, **kwargs):
         self.bot.send_chat_action(chat_id, ChatAction.UPLOAD_AUDIO)
-        return self.bot.send_audio(**kwargs)
+        return self.bot.send_audio(chat_id, **kwargs)
 
     def delete_message(self, chat_id, message_id):
         # key = f'{chat_id}_{message_id}'

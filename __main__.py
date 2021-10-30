@@ -60,11 +60,14 @@ class Controller():
 
     def configure_simple_menu(self):
         self.menu = SimpleMenu(self.bot, self.scheduler,
-                               self.scheduler_database)
+                               self.scheduler_database,
+                               self.music_database)
 
     def configure_music_database(self):
         self.music_database: MusicDatabase = MusicDatabase()
         self.music_database.load_settings(self.music_settings_filename)
+        self.music_database.connect()
+        self.music_database.create_table_if_no_exist()
 
     def configure_music_dowloader(self):
         self.music_downloader: MusicDownloader = MusicDownloader(self.music_database)

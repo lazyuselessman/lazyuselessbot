@@ -12,14 +12,14 @@ class MusicDownloader():
         with open(filename, 'r') as settings:
             settings = load(settings)
 
-        self.path = settings.get('path')
+        self.songs_path = settings.get('songs_path')
         self.temp_filename = settings.get('temp_filename')
 
     def get_ydl_options(self):
         return {
             'quiet': True,
             'format': 'bestaudio/best',
-            'outtmpl': f'{self.path}{self.temp_filename}.%(ext)s',
+            'outtmpl': f'{self.songs_path}{self.temp_filename}.%(ext)s',
             'noplaylist': True,
             'postprocessors': [{
                 'key': 'FFmpegExtractAudio',
@@ -45,11 +45,11 @@ class MusicDownloader():
     def download_music_from_info(self, info: dict):
         exist = self.database.audio_exist(info)
         if exist:
-            return exist
+            return self.database.get_audio(info)
         else:
+            self.verify_audio_parameters(info)
             while True:
                 try:
-                    self.verify_audio_parameters(info)
                     audio = self.download_audio(info)
                     return self.database.add_audio(audio, info)
                 except Exception as err:

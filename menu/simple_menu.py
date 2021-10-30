@@ -1,16 +1,18 @@
 from lazyuselessbot.bot import CustomBot
 from scheduler.manager import CustomScheduler
 from scheduler.database import SchedulerDatabase
+from music.database import MusicDatabase
 from datetime import MAXYEAR, MINYEAR, datetime, timedelta
 from requests import request
 from json import load
 
 
 class SimpleMenu():
-    def __init__(self, bot: CustomBot, scheduler: CustomScheduler, scheduler_database: SchedulerDatabase):
+    def __init__(self, bot: CustomBot, scheduler: CustomScheduler, scheduler_database: SchedulerDatabase, music_database: MusicDatabase):
         self.bot = bot
         self.scheduler = scheduler
         self.scheduler_database = scheduler_database
+        self.music_database = music_database
         self.chats = 'menu/chats.json'
 
     def shutdown(self):
@@ -214,10 +216,22 @@ class SimpleMenu():
         else:
             print("Unable to fetch group lessons.")
 
+    def print_database(self):
+        self.music_database.print_songs()
+
+    def drop_table(self):
+        self.music_database.drop_table()
+
     def display_menu(self):
         while True:
-            option = input(
-                'Simple menu:\n0. Stop bot polling.\n1. Add new job to database.\n2. Reload database.\n3. Setup group lessons.\n')
+            option = input('\n'.join(('Simple menu:',
+                                      '0. Stop bot polling.',
+                                      '1. Add new job to database.',
+                                      '2. Reload database.',
+                                      '3. Setup group lessons.',
+                                      '4. Print music database.',
+                                      #   '5. Drop table.',
+                                      '')))
             if option == '0':
                 self.shutdown()
                 break
@@ -227,3 +241,7 @@ class SimpleMenu():
                 self.scheduler.reload_database()
             elif option == '3':
                 self.group_lessons()
+            elif option == '4':
+                self.print_database()
+            # elif option == '5':
+            #     self.drop_table()
