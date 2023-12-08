@@ -1,34 +1,39 @@
 from telegram.ext import (
-    Updater,
-    Dispatcher,
+    ApplicationBuilder,
+    Application,
     CommandHandler,
     MessageHandler,
     CallbackQueryHandler,
-    CallbackContext
+    CallbackContext,
 )
-from telegram import Bot, Message, Update, ChatAction, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext.filters import Filters
-from logging import getLogger, Logger
-from json import load
+from telegram import Bot, Message, Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import filters
+from telegram.constants import ChatAction
+import logging
 from pprint import pformat
 from time import time
 from shutil import move
 
 from music.database import MusicDatabase
-from lazyuselessbot.customcommandhandler import CustomCommandHandler
 from lazyuselessbot.votedatabase import VoteDatabase, yes, no, y_symbol, n_symbol
 from lazyuselessbot.modedatabase import ModeDatabase, command, prompt, music, cancel
+
+import asyncio
+import json
 
 
 class CustomBot():
     def __init__(self, music_database: MusicDatabase):
-        self.logger: Logger = getLogger(__name__)
+        self.logger = logging.getLogger(__name__)
         self.music_database = music_database
-        self.timer = time()
+        self.last_action = time()
+
+    def disable_httpx_logger(self):
+        logging.getLogger("httpx").setLevel(logging.WARNING)
 
     def load_settings(self, filename: str):
-        with open(file=filename, mode='r') as settings_file:
-            settings: dict = load(settings_file)
+        with open(filename, mode='r') as settings_file:
+            settings: dict = json.load(settings_file)
 
         self.token: str = settings.get('token')
         self.owner_chat_id: int = settings.get('owner_chat_id')
@@ -41,45 +46,53 @@ class CustomBot():
         self.modedatabase = ModeDatabase(settings.get('modedatabase'))
 
     def connect(self):
-        self.updater: Updater = Updater(token=self.token, use_context=True)
-        self.dp: Dispatcher = self.updater.dispatcher
-        self.bot: Bot = self.updater.bot
+        self.application: Application = ApplicationBuilder().token(self.token).build()
+        self.bot: Bot = self.application.bot
 
     def setup_handlers(self):
         # log every message
-        self.dp.add_handler(MessageHandler(Filters.all, self.log_update))
+        self.application.add_handler(
+            MessageHandler(filters.ALL, self.log_update))
         group = 1
         # basic commands
-        self.dp.add_handler(CommandHandler('start', self.start_message),
-                            group=group)
-        self.dp.add_handler(CommandHandler('help', self.help_message),
-                            group=group)
+        self.application.add_handler(CommandHandler('start', self.start_message),
+                                     group=group)
+        self.application.add_handler(CommandHandler('help', self.help_message),
+                                     group=group)
         # music download, scheduler access from web
-        self.dp.add_handler(CustomCommandHandler('music', self.music, ~Filters.status_update),
-                            group=group)
-        self.dp.add_handler(CommandHandler('time', self.time),
-                            group=group)
+        _filters = filters.UpdateType.MESSAGES | filters.UpdateType.CHANNEL_POST
+        self.application.add_handler(CommandHandler('music', self.music, _filters),
+                                     group=group)
+        self.application.add_handler(CommandHandler('time', self.time),
+                                     group=group)
 
         # download income audio
-        self.dp.add_handler(MessageHandler(Filters.audio, self.audio),
-                            group=group)
+        self.application.add_handler(MessageHandler(filters.AUDIO, self.audio),
+                                     group=group)
 
         # default behavior
-        self.dp.add_handler(CustomCommandHandler('settings', self.settings),
-                            group=group)
-        self.dp.add_handler(CallbackQueryHandler(self.settings_callback, pattern=f'^({command}|{prompt}|{music}|{cancel})$'),
-                            group=group)
+        self.application.add_handler(CommandHandler('settings', self.settings),
+                                     group=group)
+        self.application.add_handler(CallbackQueryHandler(self.settings_callback, pattern=f'^({command}|{prompt}|{music}|{cancel})$'),
+                                     group=group)
 
         # thank message callback
-        self.dp.add_handler(CustomCommandHandler('kb_ty', self.kb_thank, ~Filters.status_update),
-                            group=group)
-        self.dp.add_handler(CustomCommandHandler('kb_rm', self.kb_remove, ~Filters.status_update),
-                            group=group)
-        self.dp.add_handler(CallbackQueryHandler(self.thank_callback, pattern=f'^({yes}|{no})$'),
-                            group=group)
+        self.application.add_handler(CommandHandler('kb_ty', self.kb_thank, _filters),
+                                     group=group)
+        self.application.add_handler(CommandHandler('kb_rm', self.kb_remove, _filters),
+                                     group=group)
+        self.application.add_handler(CallbackQueryHandler(self.thank_callback, pattern=f'^({yes}|{no})$'),
+                                     group=group)
 
         # error handler
-        self.dp.add_error_handler(self.error)
+        self.application.add_error_handler(self.error)
+
+    async def check_send_rate(self):
+        curtime = time()
+        if curtime - self.last_action < 4:
+            print(f'Sleeping for {4 - (curtime - self.last_action)}sec')
+            await asyncio.sleep(4 - (curtime - self.last_action))
+        self.last_action = curtime
 
     def get_settings_reply_markup(self):
         keyboard = [
@@ -92,7 +105,7 @@ class CustomBot():
         ]
         return InlineKeyboardMarkup(keyboard)
 
-    def settings(self, update: Update, connect: CallbackContext):
+    async def settings(self, update: Update, context: CallbackContext):
         # Send Question to select mode
         # All with Prompt — dispaly nice prompt what bot should do with this message
         # Command only — bot will response only messages with commands
@@ -100,17 +113,21 @@ class CustomBot():
         # Default — ignore everything, response only on settings@lazyuselessbot
         text = self.modedatabase.generate_text(update.effective_chat.id)
         reply_markup = self.get_settings_reply_markup()
-        update.effective_message.reply_text(text, reply_markup=reply_markup)
+        await self.check_send_rate()
+        await update.effective_message.reply_text(text, reply_markup=reply_markup, reply_to_message_id=update.effective_message.id)
 
-    def settings_callback(self, update: Update, context: CallbackContext):
+    async def settings_callback(self, update: Update, context: CallbackContext):
         query = update.callback_query
         text = self.modedatabase.edit_entry(
             update.effective_chat.id, query.data)
-        query.answer(text)
-        update.effective_message.reply_to_message.delete()
-        update.effective_message.delete()
+        await self.check_send_rate()
+        await query.answer(text)
+        await self.check_send_rate()
+        await update.effective_message.reply_to_message.delete()
+        await self.check_send_rate()
+        await update.effective_message.delete()
 
-    def start_message(self, update: Update, context: CallbackContext):
+    async def start_message(self, update: Update, context: CallbackContext):
         kwargs = {
             'chat_id': update.effective_chat.id,
             'text': 'Greetings º ◡ º\n'
@@ -121,115 +138,130 @@ class CustomBot():
             'disable_web_page_preview': None,
             'disable_notification': False,
             'reply_to_message_id': None,
-            'reply_markup': None,
-            'timeout': None
+            'reply_markup': None
         }
-        self.send_message(**kwargs)
+        await self.send_message(**kwargs)
 
-    def help_message(self, update: Update, context: CallbackContext):
+    async def help_message(self, update: Update, context: CallbackContext):
         kwargs = {
             'chat_id': update.effective_chat.id,
             'text': 'Send me youtube link to retrieve audio from it.\n'
                     '/music <link>\n'
                     'Send me audio to share with me your music (◕‿◕✿)'
         }
-        self.send_message(**kwargs)
+        await self.send_message(**kwargs)
 
-    def upload_music(self, song: dict, chat_id):
+    async def upload_music(self, song: dict, chat_id):
         kwargs = {
             'duration': song.get('duration'),
             'performer': song.get('performer'),
             'title': song.get('title'),
             'caption': f'https://youtu.be/{song.get("youtube_id")}',
-            'thumb': open(song.get('thumbnail'), 'rb')
+            'thumbnail': open(song.get('thumbnail'), 'rb')
         }
         if song.get('telegram_id'):
             message_kwargs = {
                 'chat_id': chat_id,
-                'text': f'Already in library\n'
-                        f'https://youtu.be/{song.get("youtube_id")}\n'
-                        f'Performer: {song.get("performer")}\n'
-                        f'Title: {song.get("title")}'
+                'text':
+                f'Already in library\n'
+                f'https://youtu.be/{song.get("youtube_id")}\n'
+                f'Performer: {song.get("performer")}\n'
+                f'Title: {song.get("title")}'
             }
-            self.send_message(**message_kwargs)
+            await self.send_message(**message_kwargs)
             kwargs.update(audio=song.get('telegram_id'))
-            self.send_audio(chat_id, **kwargs)
+            await self.send_audio(chat_id, **kwargs)
         else:
             with open(song.get('filename'), 'rb') as audio:
                 kwargs.update(audio=audio)
-                audio_message = self.send_audio(chat_id, **kwargs)
-                self.music_database.update_record(song.get('youtube_id'), audio_message.audio.file_id)
+                audio_message = await self.send_audio(chat_id, **kwargs)
+                self.music_database.update_record(song.get('youtube_id'),
+                                                  audio_message.audio.file_id)
 
-    def music_download(self, url: str, chat_id):
+    async def music_download(self, url: str, chat_id):
         for song in self.music_database.get_music(url):
-            self.upload_music(song, chat_id)
+            await self.upload_music(song, chat_id)
 
-    def music(self, update: Update, context: CallbackContext):
+    async def music(self, update: Update, context: CallbackContext):
         # for each individual link
         for arg in context.args:
-            self.music_download(arg, update.effective_chat.id)
-        update.effective_message.delete()
+            await self.music_download(arg, update.effective_chat.id)
+        await self.check_send_rate()
+        await update.effective_message.delete()
 
-    def time(self, update: Update, context: CallbackContext):
+    async def time(self, update: Update, context: CallbackContext):
         pass
 
-    def audio(self, update: Update, context: CallbackContext):
-        self.log_update(update, context)
+    async def audio(self, update: Update, context: CallbackContext):
         audio_file = update.effective_message.audio.get_file()
         filename = audio_file.download()
         move(filename, f'{self.music_path}{filename}')
         file_id = update.effective_message.audio.file_id
-        self.bot.send_audio(chat_id=update.effective_chat.id, audio=file_id)
-        update.effective_message.delete()
+        await self.check_send_rate()
+        await self.bot.send_audio(chat_id=update.effective_chat.id, audio=file_id)
+        await self.check_send_rate()
+        await update.effective_message.delete()
 
-    def log_update(self, update: Update, _: CallbackContext):
-        try:
-            self.logger.info(f'Income update:\n{pformat(update.to_dict(), indent=4)}')
-        except Exception as err:
-            pass
+    async def log_update(self, update: Update, context: CallbackContext):
+        update_str = update.to_dict() if isinstance(update, Update) else str(update)
+        self.logger.info(f'Income update:\n{pformat(update_str, indent=4)}')
 
-    def error(self, update: Update, context: CallbackContext):
-        self.log_update(update, context)
-        self.logger.error(f'Error: {context.error}')
+    async def error(self, update: Update, context: CallbackContext):
+        self.logger.error("\nException while handling an update:"
+                          f"\ncontext.chat_data = {str(context.chat_data)}"
+                          f"\ncontext.user_data = {str(context.user_data)}", exc_info=context.error)
 
-    def send_message(self, chat_id, **kwargs):
-        self.bot.send_chat_action(chat_id, ChatAction.TYPING)
-        message: Message = self.bot.send_message(chat_id=chat_id, **kwargs)
+    async def send_message(self, chat_id, **kwargs):
+        await self.check_send_rate()
+        await self.bot.send_chat_action(chat_id, ChatAction.TYPING, read_timeout=999)
+        await self.check_send_rate()
+        message: Message = await self.bot.send_message(chat_id=chat_id, **kwargs, read_timeout=999)
         return message.message_id
 
-    def kb_thank(self, update: Update, context: CallbackContext):
+    async def kb_thank(self, update: Update, context: CallbackContext):
         message = update.effective_message
         if message.reply_to_message:
-            key = f'{update.effective_chat.id}_{message.reply_to_message.message_id}'
+            key = f'{update.effective_chat.id}_{
+                message.reply_to_message.message_id}'
             chat_id = update.effective_chat.id
-            y_counter, n_counter, _ = self.votedatabase.edit_entry(key, chat_id)
+            y_counter, n_counter, _ = self.votedatabase.edit_entry(
+                key, chat_id)
             reply_markup = self.get_thanks_replymarkup(y_counter, n_counter)
-            message.reply_to_message.edit_reply_markup(reply_markup=reply_markup)
-        message.delete()
+            await self.check_send_rate()
+            await message.reply_to_message.edit_reply_markup(reply_markup=reply_markup)
+        await self.check_send_rate()
+        await message.delete()
 
-    def kb_remove(self, update: Update, context: CallbackContext):
+    async def kb_remove(self, update: Update, context: CallbackContext):
         message = update.effective_message
         if message.reply_to_message:
-            message.reply_to_message.edit_reply_markup()
-        message.delete()
+            await self.check_send_rate()
+            await message.reply_to_message.edit_reply_markup()
+        await self.check_send_rate()
+        await message.delete()
 
     def get_thanks_replymarkup(self, y_count: int, n_count: int):
         keyboard = [
             [
-                InlineKeyboardButton(f'{y_count} {y_symbol}', callback_data=yes),
+                InlineKeyboardButton(
+                    f'{y_count} {y_symbol}', callback_data=yes),
                 InlineKeyboardButton(f'{n_count} {n_symbol}', callback_data=no)
             ]
         ]
         return InlineKeyboardMarkup(keyboard)
 
     def send_message_thank(self, chat_id, **kwargs):
-        self.bot.send_chat_action(chat_id, ChatAction.TYPING)
-        reply_markup = self.get_thanks_replymarkup(0, 0)
-        message: Message = self.bot.send_message(chat_id=chat_id,
-                                                 reply_markup=reply_markup, **kwargs)
-        return message.message_id
+        async def send_message_thank():
+            await self.check_send_rate()
+            await self.bot.send_chat_action(chat_id, ChatAction.TYPING)
+            reply_markup = self.get_thanks_replymarkup(0, 0)
+            await self.check_send_rate()
+            message: Message = await self.bot.send_message(chat_id=chat_id,
+                                                           reply_markup=reply_markup, **kwargs)
+            return message.message_id
+        return asyncio.run_coroutine_threadsafe(send_message_thank(), self.loop).result()
 
-    def thank_callback(self, update: Update, context: CallbackContext):
+    async def thank_callback(self, update: Update, context: CallbackContext):
         query = update.callback_query
         key = f'{update.effective_chat.id}_{query.message.message_id}'
         chat_id = update.effective_user.id
@@ -237,31 +269,42 @@ class CustomBot():
         y_counter, n_counter, text = self.votedatabase.edit_entry(key,
                                                                   chat_id, data)
 
-        query.answer(text=text)
+        await query.answer(text=text)
         reply_markup = self.get_thanks_replymarkup(y_counter, n_counter)
 
-        if time() - self.timer > 3:
-            self.timer = time()
-            query.edit_message_reply_markup(reply_markup=reply_markup)
+        await self.check_send_rate()
+        await query.edit_message_reply_markup(reply_markup=reply_markup)
 
-    def send_audio(self, chat_id, **kwargs):
-        self.bot.send_chat_action(chat_id, ChatAction.UPLOAD_AUDIO)
-        return self.bot.send_audio(chat_id, **kwargs)
+    async def send_audio(self, chat_id, **kwargs):
+        await self.check_send_rate()
+        await self.bot.send_chat_action(chat_id, ChatAction.UPLOAD_VIDEO, read_timeout=999)
+        await self.check_send_rate()
+        return await self.bot.send_audio(chat_id, **kwargs, read_timeout=999)
 
     def delete_message(self, chat_id, message_id):
         # key = f'{chat_id}_{message_id}'
         # entry = self.votedatabase.delete_entry(key)
         # self.logger.info(f'Removed entry: \n {pformat(entry)}')
-        self.bot.delete_message(chat_id=chat_id, message_id=message_id)
+        async def delete_message():
+            await self.check_send_rate()
+            await self.bot.delete_message(chat_id=chat_id, message_id=message_id)
+        asyncio.run_coroutine_threadsafe(delete_message(), self.loop).result()
 
-    def start(self):
+    def start(self, loop: asyncio.AbstractEventLoop):
         self.logger.info('Custom Bot started')
-        self.updater.start_polling(timeout=999)  #
+        self.loop = loop
+        asyncio.set_event_loop(loop)
+        self.application.run_polling(timeout=999,
+                                     read_timeout=999,
+                                     write_timeout=999)
 
     def stop(self):
-        self.votedatabase.save_database()
-        self.logger.info('VoteDatabase has been saved')
-        self.modedatabase.save_database()
-        self.logger.info('ModeDatabase has been saved')
-        self.updater.stop()
-        self.logger.info('Custom Bot has been shut down')
+        async def stop():
+            self.votedatabase.save_database()
+            self.logger.info('VoteDatabase has been saved')
+            self.modedatabase.save_database()
+            self.logger.info('ModeDatabase has been saved')
+            self.application.stop_running()
+            self.logger.info('Custom Bot is going to be down')
+
+        asyncio.run_coroutine_threadsafe(stop(), self.loop).result()

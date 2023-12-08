@@ -100,6 +100,7 @@ class MusicDatabase():
                       title=track,
                       thumbnail=thumb)
         session.add(entry)
+        self.logger.info(f"Downloaded song id: {info.get('id')}, performer: {artist}, title: {track}")
         return entry
 
     def generate_filename(self, info: dict):
@@ -126,17 +127,17 @@ class MusicDatabase():
         audio = MP3(filename)
         tags = {
             # Title/songname/content description
-            'TIT2': TIT2(encoding=3, text=info.get('track', '')),
+            'TIT2': TIT2(encoding=3, text=f"{info.get('track', '')}"),
             # Lead performer(s)/Soloist(s)
-            'TPE1': TPE1(encoding=3, text=info.get('artist', '')),
+            'TPE1': TPE1(encoding=3, text=f"{info.get('artist', '')}"),
             # Date
-            'TDRC': TDRC(encoding=3, text=f'{info.get("release_year","")}'),
+            'TDRC': TDRC(encoding=3, text=f"{info.get('release_year','')}"),
             # Content type (genre)
-            'TCON': TCON(encoding=3, text=info.get('genre', '')),
+            'TCON': TCON(encoding=3, text=f"{info.get('genre', '')}"),
             # Album/Movie/Show title
-            'TALB': TALB(encoding=3, text=info.get('album', '')),
+            'TALB': TALB(encoding=3, text=f"{info.get('album', '')}"),
             # Track number/Position in set
-            'TRCK': TRCK(encoding=3, text=info.get('track_number', '')),
+            'TRCK': TRCK(encoding=3, text=f"{info.get('track_number', '')}"),
             # Comments
             'COMM': COMM(encoding=3, text=f'https://youtu.be/{info.get("id", "")}'),
         }

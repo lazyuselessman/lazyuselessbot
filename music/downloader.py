@@ -1,6 +1,6 @@
 import os
 from time import sleep
-from youtube_dl import YoutubeDL
+from yt_dlp import YoutubeDL
 from urllib.parse import urlparse
 from urllib.request import urlretrieve
 
@@ -37,7 +37,7 @@ class MusicDownloader():
             raise NameError(f'Audio filesize exceed {filesize} bytes.')
 
     def song(self, info: dict, filename: str):
-        self.verify_audio_parameters(info)
+        # self.verify_audio_parameters(info)
         while True:
             try:
                 return self.download_audio(info, filename)
@@ -48,7 +48,7 @@ class MusicDownloader():
     def retrive_songs_info(self, url: str) -> list[dict]:
         info = YoutubeDL({'quiet': True}).extract_info(url, download=False)
         if info.get('_type') == 'playlist':
-            return info.get('entries')
+            return [entry for entry in info.get('entries') if entry is not None]
         return [info, ]
 
     def thumb(self, url: str, filename: str) -> str:

@@ -167,3 +167,5 @@ settings.json
 menu/chats.json
 music/database/*
 music/archive.sqlite
+ffmpeg-2023-01-18-git-ba36e6ed52-essentials_build/
+start.ps1

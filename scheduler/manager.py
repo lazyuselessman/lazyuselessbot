@@ -75,6 +75,7 @@ class CustomScheduler():
 
     def open_link_with_delay(self, payload: dict):
         url = payload.get('url')
+        print(f'\n\n{url = }\n\n')
         if 'zoom.us' in url:
             self.open_zoom_link(payload)
         else:

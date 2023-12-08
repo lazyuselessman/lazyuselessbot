@@ -2,9 +2,8 @@ from lazyuselessbot.bot import CustomBot
 from scheduler.manager import CustomScheduler
 from scheduler.database import SchedulerDatabase
 from music.database import MusicDatabase
-from datetime import MAXYEAR, MINYEAR, datetime, timedelta
-from requests import request
-from json import load
+import datetime
+import json
 
 
 class SimpleMenu():
@@ -39,7 +38,7 @@ class SimpleMenu():
                     print(f'Type \'skip\' to skip.')
 
     def one_time_job(self):
-        year = self.select_int_range('year: ', MINYEAR, MAXYEAR, False)
+        year = self.select_int_range('year: ', datetime.MINYEAR, datetime.MAXYEAR, False)
         month = self.select_int_range('month: ', 1, 12, False)
         day = self.select_int_range('day: ', 1, 31, False)
         hour = self.select_int_range('hour: ', 0, 24, False)
@@ -55,7 +54,7 @@ class SimpleMenu():
             'Every nth week?\n1. Every week\n2. Every two week', 1, 2, False)
         if period == 1:
             return '*'
-        week_number = datetime.now().isocalendar().week
+        week_number = datetime.datetime.now().isocalendar().week
         next_week = self.select_int_range(
             'Starting from current week?\n1.Yes.\n2.No', 1, 2, False)
         if next_week == 1:
@@ -103,7 +102,7 @@ class SimpleMenu():
 
     def select_chat(self):
         with open(self.chats, mode='r', encoding='utf-8') as chats:
-            chats: list = load(chats)
+            chats: list = json.load(chats)
         text = '\n'.join(
             [f"{i} {chat.get('name')}" for i, chat in enumerate(chats)])
         option = self.select_int_range(text, 0, len(chats), False)
@@ -159,63 +158,6 @@ class SimpleMenu():
         job.update(payload=self.dialog_actions())
         self.scheduler_database.add_job(job)
 
-    def process_week(self, days: dict, week: int):
-        for i in range(1, 6):
-            if self.select_int_range(f"skip to skip day {i}, 1 to continue", 1, 1, True) is None:
-                continue
-
-            day = days.get(f"{i}")
-            for lesson in day.get('lessons'):
-                time_start = datetime.strptime(lesson.get('time_start'),
-                                               '%H:%M:%S')
-                text = f'{datetime.strftime(time_start, "%H:%M")} º ‿ º\n{lesson.get("lesson_name")}\n{lesson.get("teacher_name")}\n{lesson.get("lesson_room")}'
-                url = input('Adding ' + lesson.get('day_name') +
-                            f':\n{text}\nInput conference url: ')
-                text += f"\n{url}"
-                job: dict = dict()
-                job.update(id=self.scheduler_database.get_new_id())
-                time_start = time_start - timedelta(minutes=10)
-                time_delta = datetime.strptime(lesson.get(
-                    'time_end'), '%H:%M:%S') - time_start
-                job.update(time={
-                    'trigger': 'cron',
-                    'week': f'{week}/2',
-                    'day_of_week': f'{i-1}',
-                    'hour': time_start.hour,
-                    'minute': time_start.minute,
-                })
-                job.update(payload=[{
-                    'action': 'send_and_delete_message',
-                    "message": {
-                        'chat_id': self.select_chat(),
-                        "disable_notification": True if self.select_int_range(f'disable_notification?\n1. True\n2. False', 1, 2, False) == 1 else False,
-                        "text": text.split('\n')
-                    },
-                    "timedelta": {
-                        "hours": time_delta.seconds // (60*60),
-                        "minutes": (time_delta.seconds//60) % 60
-                    }
-                },
-                    {
-                        'action': 'open_link_with_delay',
-                        'url': url,
-                        'timedelta': {
-                            'hours': 0,
-                            'minutes': 1
-                        }
-                }])
-                self.scheduler_database.add_job(job)
-
-    def group_lessons(self):
-        response = request('GET',
-                           f'https://api.rozklad.org.ua/v2/groups/{input("Group name? ")}/timetable')
-        if response.ok:
-            weeks = response.json().get('data').get('weeks')
-            self.process_week(weeks.get('1').get('days'), 1)
-            self.process_week(weeks.get('2').get('days'), 2)
-        else:
-            print("Unable to fetch group lessons.")
-
     def print_database(self):
         self.music_database.print_songs()
 
@@ -235,10 +177,9 @@ class SimpleMenu():
                                       '0. Stop bot polling.',
                                       '1. Add new job to database.',
                                       '2. Reload database.',
-                                      '3. Setup group lessons.',
-                                      '4. Print music database.',
-                                      #   '5. Drop table.',
-                                      '6. Delete song from database.',
+                                      '3. Print music database.',
+                                      #   '4. Drop table.',
+                                      '5. Delete song from database.',
                                       '')))
             if option == '0':
                 self.shutdown()
@@ -248,10 +189,8 @@ class SimpleMenu():
             elif option == '2':
                 self.scheduler.reload_database()
             elif option == '3':
-                self.group_lessons()
-            elif option == '4':
                 self.print_database()
-            # elif option == '5':
+            # elif option == '4':
             #     self.drop_table()
-            elif option == '6':
+            elif option == '5':
                 self.delete_music()
