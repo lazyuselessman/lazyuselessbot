@@ -1,6 +1,4 @@
 from lazyuselessbot.bot import CustomBot
-from scheduler.manager import CustomScheduler
-from scheduler.database import SchedulerDatabase
 from menu.simple_menu import SimpleMenu
 from music.downloader import MusicDownloader
 from music.database import MusicDatabase
@@ -50,24 +48,8 @@ class Controller():
         self.logger.info("Starting bot thread..")
         self.bot_thread.start()
 
-    def configure_scheduler_database(self):
-        self.scheduler_database = SchedulerDatabase(
-            self.scheduler_database_filename)
-        self.scheduler_database.load_database()
-
-    def configure_scheduler(self):
-        self.scheduler = CustomScheduler(self.bot, self.scheduler_database)
-        # self.scheduler.disable_apscheduler_logger()
-        self.scheduler_thread = threading.Thread(target=self.scheduler.start)
-        self.logger.info("Starting scheduler thread..")
-        self.scheduler_thread.start()
-
-        self.scheduler.create_jobs()
-
     def configure_simple_menu(self):
-        self.menu = SimpleMenu(self.bot, self.scheduler,
-                               self.scheduler_database,
-                               self.music_database)
+        self.menu = SimpleMenu(self.bot, self.music_database)
 
     def configure_music_downloader(self):
         self.music_downloader: MusicDownloader = MusicDownloader()
@@ -85,17 +67,12 @@ class Controller():
         self.logger.info("Waiting for bot thread to shutdown..")
         self.bot_thread.join()
         self.logger.info("Bot Thread Down.")
-        self.logger.info("Waiting for scheduler thread to shutdown..")
-        self.scheduler_thread.join()
-        self.logger.info("Scheduler Thread Down..")
 
     def load_settings(self, filename: str):
         with open(filename, 'r', encoding='utf-8') as settings:
             settings: dict = json.load(settings)
 
         self.bot_settings_filename = settings.get('bot_settings')
-        self.scheduler_settings_filename = settings.get('scheduler_settings')
-        self.scheduler_database_filename = settings.get('scheduler_database')
         self.music_settings_filename = settings.get('music_settings')
         self.music_database_filename = settings.get('music_database')
 
@@ -107,8 +84,6 @@ def main():
     controller.configure_music_downloader()
     controller.configure_music_database()
     controller.configure_bot()
-    controller.configure_scheduler_database()
-    controller.configure_scheduler()
     controller.configure_simple_menu()
     controller.display_menu()
     controller.wait_for_threads_to_shutdown()
